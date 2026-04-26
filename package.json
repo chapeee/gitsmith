@@ -1,0 +1,43 @@
+{
+  "name": "gitsmith",
+  "version": "0.1.0",
+  "description": "GitSmith: configurable conventional commits CLI",
+  "type": "module",
+  "bin": {
+    "gitsmith": "./bin/cli.js"
+  },
+  "main": "./src/index.js",
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md"
+  ],
+  "scripts": {
+    "lint": "node --check bin/cli.js && node --check src/index.js && node --check src/commands/commit.js && node --check src/commands/init.js && node --check src/config/default.js && node --check src/config/loader.js && node --check src/config/schema.js && node --check src/prompt/builder.js && node --check src/format/template.js && node --check src/git/executor.js",
+    "test": "node --test",
+    "prepare": "npm run lint"
+  },
+  "keywords": [
+    "git",
+    "commit",
+    "conventional-commits",
+    "cli",
+    "productivity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "enquirer": "^2.4.1",
+    "execa": "^9.3.0",
+    "find-up": "^7.0.0",
+    "picocolors": "^1.0.1",
+    "zod": "^3.23.8"
+  }
+}
