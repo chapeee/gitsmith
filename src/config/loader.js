@@ -69,5 +69,6 @@ export async function loadValidatedConfig() {
   }
 
   const config = withAiDefaults(validateConfig(json));
+  console.log("[TRACE:loader] loaded config:", JSON.stringify(config, null, 2));
   return { config, configPath };
 }

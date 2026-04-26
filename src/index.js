@@ -40,6 +40,7 @@ export function runCli() {
         : process.argv.includes("--ai")
           ? "force"
           : "auto";
+      console.log(`[TRACE:index] commit action invoked, aiMode=${aiMode}, argv=${JSON.stringify(process.argv)}`);
       await runCommitCommand({ aiMode });
     });
 
