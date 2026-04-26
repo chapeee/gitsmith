@@ -1,5 +1,8 @@
 import { execa } from "execa";
 
+/**
+ * Ensures command runs inside a git work tree.
+ */
 export async function ensureInsideGitRepo() {
   try {
     const { stdout } = await execa("git", ["rev-parse", "--is-inside-work-tree"]);
@@ -11,6 +14,9 @@ export async function ensureInsideGitRepo() {
   }
 }
 
+/**
+ * Ensures there are staged changes ready to commit.
+ */
 export async function ensureStagedFiles() {
   try {
     const { stdout } = await execa("git", ["diff", "--cached", "--name-only"]);
@@ -22,6 +28,11 @@ export async function ensureStagedFiles() {
   }
 }
 
+/**
+ * Creates a git commit with the provided header message.
+ * @param {string} message
+ * @returns {Promise<{output: string, hash: string | null}>}
+ */
 export async function createCommit(message) {
   const { stdout } = await execa("git", ["commit", "-m", message]);
   const hashMatch = stdout.match(/\[[^\]]+\s([a-f0-9]{7,40})\]/i);

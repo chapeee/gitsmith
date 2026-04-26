@@ -1,8 +1,10 @@
 import { z } from "zod";
 
+// Tokens supported by the format engine (e.g. "{type}({scope}): {message}").
 const formatTokenRegex = /\{(type|scope|ticket|message|breaking)\}/g;
 const allowedTokens = new Set(["type", "scope", "ticket", "message", "breaking"]);
 
+// Base schema plus cross-field validation rules.
 const baseSchema = z
   .object({
     types: z.array(z.string().min(1, "types entries cannot be empty")).min(1, "types must include at least one value"),
@@ -31,6 +33,7 @@ const baseSchema = z
       });
     }
 
+    // Extract token usage to validate config/format consistency.
     const tokens = [...config.format.matchAll(formatTokenRegex)].map((match) => match[1]);
     const foundTokens = new Set(tokens);
     const invalidTokenMatches = config.format.match(/\{([^}]+)\}/g) ?? [];
@@ -72,6 +75,7 @@ const baseSchema = z
   });
 
 export function validateConfig(config) {
+  // safeParse lets us return a single aggregated, human-readable error message.
   const parsed = baseSchema.safeParse(config);
   if (!parsed.success) {
     const details = parsed.error.issues

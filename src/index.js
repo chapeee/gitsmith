@@ -3,7 +3,11 @@ import pc from "picocolors";
 import { runCommitCommand } from "./commands/commit.js";
 import { runInitCommand } from "./commands/init.js";
 
+/**
+ * Bootstraps the CLI program and registers all public commands.
+ */
 export function runCli() {
+  // Single commander instance for global options and command routing.
   const program = new Command();
 
   program
@@ -27,6 +31,7 @@ export function runCli() {
     });
 
   program.configureOutput({
+    // Keep all commander error output consistently colored.
     outputError: (str, write) => write(pc.red(str))
   });
 

@@ -1,3 +1,6 @@
+/**
+ * Cleans extra whitespace introduced by optional tokens in format templates.
+ */
 function normalizeSpacing(text) {
   return text
     .replace(/\s+/g, " ")
@@ -8,6 +11,9 @@ function normalizeSpacing(text) {
     .trim();
 }
 
+/**
+ * Renders the final commit header from template + collected answers.
+ */
 export function buildCommitMessage(format, values) {
   const tokens = {
     type: values.type ?? "",

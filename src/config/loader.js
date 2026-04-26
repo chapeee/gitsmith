@@ -3,10 +3,18 @@ import { findUp } from "find-up";
 import { CONFIG_FILE_NAME } from "./default.js";
 import { validateConfig } from "./schema.js";
 
+/**
+ * Finds the nearest config file by walking up parent directories.
+ * @returns {Promise<string | undefined>}
+ */
 export async function findConfigPath() {
   return findUp(CONFIG_FILE_NAME, { type: "file" });
 }
 
+/**
+ * Loads, parses, and validates project config.
+ * @returns {Promise<{config: object, configPath: string}>}
+ */
 export async function loadValidatedConfig() {
   const configPath = await findConfigPath();
   if (!configPath) {
@@ -15,6 +23,7 @@ export async function loadValidatedConfig() {
     );
   }
 
+  // Keep file-read and JSON-parse errors separate for clearer guidance.
   let raw;
   try {
     raw = await readFile(configPath, "utf8");

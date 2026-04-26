@@ -3,12 +3,20 @@ import pc from "picocolors";
 import { buildCommitMessage } from "../format/template.js";
 
 const { prompt } = enquirer;
+// Reserved sentinel value used to detect custom scope selection.
+const CUSTOM_SCOPE_CHOICE = "__custom_scope__";
 
+/**
+ * Normalizes prompt-cancel detection across platform-specific errors/signals.
+ */
 function isPromptCancelError(error) {
   const message = error instanceof Error ? error.message : String(error);
   return /cancel|canceled|cancelled|sigint/i.test(message);
 }
 
+/**
+ * Runs a single prompt and exits gracefully on cancellation.
+ */
 async function ask(question) {
   try {
     const response = await prompt(question);
@@ -23,6 +31,7 @@ async function ask(question) {
 }
 
 export async function collectCommitData(config) {
+  // Required: commit type always comes from the configured type list.
   const type = await ask({
     type: "select",
     name: "type",
@@ -33,12 +42,30 @@ export async function collectCommitData(config) {
   let scope = "";
   if (config.askScope) {
     if (Array.isArray(config.scopes) && config.scopes.length > 0) {
-      scope = await ask({
+      // Teams can define fixed scopes, while still allowing ad-hoc "Other".
+      const selectedScope = await ask({
         type: "select",
         name: "scope",
         message: "Select scope",
-        choices: config.scopes
+        choices: [
+          ...config.scopes,
+          { name: CUSTOM_SCOPE_CHOICE, message: "Other (type custom scope)" }
+        ]
       });
+
+      if (selectedScope === CUSTOM_SCOPE_CHOICE) {
+        const customScopeInput = await ask({
+          type: "input",
+          name: "customScope",
+          message: "Enter custom scope",
+          initial: "",
+          validate: (value) =>
+            String(value).trim().length > 0 ? true : "Custom scope cannot be empty"
+        });
+        scope = String(customScopeInput).trim();
+      } else {
+        scope = selectedScope;
+      }
     } else {
       const scopeInput = await ask({
         type: "input",
@@ -52,6 +79,7 @@ export async function collectCommitData(config) {
 
   let ticket = "";
   if (config.askTicket) {
+    // Prefix is configured once and auto-prepended to entered ticket number.
     const prefix = config.ticketPrefix ?? "";
     const ticketInput = await ask({
       type: "input",
@@ -92,6 +120,7 @@ export async function collectCommitData(config) {
 
   const headerLimit = config.headerMaxLength;
   if (headerLimit && commitMessage.length > headerLimit) {
+    // Warn only; do not block commits because some teams prefer flexibility.
     console.log(
       pc.yellow(
         `Warning: commit header is ${commitMessage.length} characters (limit: ${headerLimit}).`

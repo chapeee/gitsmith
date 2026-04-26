@@ -25,7 +25,7 @@ What should happen instead.
 - OS:
 - Node version:
 - npm version:
-- komitly version:
+- gitsmith version:
 
 ## Extra Context
 
