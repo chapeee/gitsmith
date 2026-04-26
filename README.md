@@ -2,10 +2,41 @@
 
 GitSmith: configurable conventional commits CLI for teams and solo developers.
 
+[![npm version](https://img.shields.io/npm/v/gitsmith?color=cb3837)](https://www.npmjs.com/package/gitsmith)
+[![npm downloads](https://img.shields.io/npm/dm/gitsmith?color=blue)](https://www.npmjs.com/package/gitsmith)
+[![license](https://img.shields.io/github/license/chapeee/gitsmith?color=orange)](https://github.com/chapeee/gitsmith/blob/main/LICENSE)
+[![node](https://img.shields.io/node/v/gitsmith?color=339933)](https://nodejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/chapeee/gitsmith/pulls)
+[![issues](https://img.shields.io/github/issues/chapeee/gitsmith)](https://github.com/chapeee/gitsmith/issues)
+
 **gitsmith** is a configurable Conventional Commits CLI that adapts to every project through a single `.commitconfig.json` file. Install it once globally, drop a config in any repo, and ship clean, consistent commits every time. Optional AI assist turns "what did you do?" into a perfectly formatted commit using a free NVIDIA model, so you stop fighting the type, scope, and wording every time you commit.
 
+## Screenshots
 
-![GitSmith demo](https://ik.imagekit.io/mq90sdk8y/commit.gif)
+### Commit flow
+
+![GitSmith commit flow](./assets/commit.gif)
+
+### AI flow (NVIDIA API)
+
+Use `gitsmith --ai` to force the AI prompt and generate suggestions from your NVIDIA AI API key.
+
+## Quick Links
+
+- [Features](#features-v1)
+- [Quick Start](#quick-start)
+- [Commands](#commands)
+- [AI-assisted commits](#ai-assisted-commits)
+- [Local Development](#local-development)
+- [Open Source](#open-source)
+
+## Why GitSmith
+
+- Keeps commit messages consistent across teams and repos
+- Supports custom project formats through `.commitconfig.json`
+- Uses optional NVIDIA AI API suggestions for faster commit writing
+- Falls back to manual prompts when AI is disabled or key is missing
+- Runs safety checks before commit to reduce mistakes
 
 ## Features (v1)
 
