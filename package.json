@@ -29,6 +29,14 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chapeee/gitsmith.git"
+  },
+  "homepage": "https://github.com/chapeee/gitsmith#readme",
+  "bugs": {
+    "url": "https://github.com/chapeee/gitsmith/issues"
+  },
   "engines": {
     "node": ">=20"
   },
