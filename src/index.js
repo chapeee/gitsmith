@@ -40,7 +40,6 @@ export function runCli() {
         : process.argv.includes("--ai")
           ? "force"
           : "auto";
-      console.log(`[TRACE:index] commit action invoked, aiMode=${aiMode}, argv=${JSON.stringify(process.argv)}`);
       await runCommitCommand({ aiMode });
     });
 
@@ -83,6 +82,22 @@ export function runCli() {
     // Keep all commander error output consistently colored.
     outputError: (str, write) => write(pc.red(str))
   });
+
+  program.addHelpText(
+    "after",
+    `
+Examples:
+  gitsmith
+  gitsmith --ai
+  gitsmith --no-ai
+  gitsmith init --force
+  gitsmith key:set
+  gitsmith key:show
+  gitsmith key:status
+  gitsmith key:remove
+  gitsmith key:reset
+`
+  );
 
   program.parseAsync(process.argv).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

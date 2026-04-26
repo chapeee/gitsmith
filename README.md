@@ -5,7 +5,7 @@ GitSmith: configurable conventional commits CLI for teams and solo developers.
 **gitsmith** is a configurable Conventional Commits CLI that adapts to every project through a single `.commitconfig.json` file. Install it once globally, drop a config in any repo, and ship clean, consistent commits every time. Optional AI assist turns "what did you do?" into a perfectly formatted commit using a free NVIDIA model, so you stop fighting the type, scope, and wording every time you commit.
 
 
-![GitSmith demo](./assets/commit.gif)
+![GitSmith demo](https://ik.imagekit.io/mq90sdk8y/commit.gif)
 
 ## Features (v1)
 
@@ -16,6 +16,7 @@ GitSmith: configurable conventional commits CLI for teams and solo developers.
 - Git safety checks (must be git repo, must have staged files)
 - Commit preview + confirmation before running `git commit`
 - `init` command that generates a conventional default config
+- Optional AI suggestions powered by the NVIDIA AI API
 
 ## Install
 
@@ -59,11 +60,14 @@ gitsmith
 ## Commands
 
 - `gitsmith` or `gitsmith commit`: Start interactive commit flow
+- `gitsmith --ai`: Force AI prompt for this run
+- `gitsmith --no-ai`: Skip AI prompt for this run
 - `gitsmith init`: Create `.commitconfig.json` in current directory
 - `gitsmith init --force`: Overwrite existing config
 - `gitsmith key:set [key]`: Save or overwrite NVIDIA API key
 - `gitsmith key:show`: Show masked key
 - `gitsmith key:remove`: Remove saved key
+- `gitsmith key:reset`: Alias for `key:remove`
 - `gitsmith key:status`: Show saved key status
 
 ## Config Schema
@@ -97,7 +101,11 @@ Available format tokens:
   "askTicket": false,
   "askBreaking": true,
   "format": "{type}({scope}): {message}",
-  "headerMaxLength": 72
+  "headerMaxLength": 72,
+  "ai": {
+    "enabled": true,
+    "askByDefault": true
+  }
 }
 ```
 
@@ -134,7 +142,7 @@ gitsmith key:set
 gitsmith
 ```
 
-### Free NVIDIA API key
+### NVIDIA AI API key
 
 Get a free key from [build.nvidia.com](https://build.nvidia.com).
 
@@ -167,6 +175,7 @@ Get a free key from [build.nvidia.com](https://build.nvidia.com).
 | `gitsmith key:set <key>` | Save key non-interactively      |
 | `gitsmith key:show`      | Show masked key                 |
 | `gitsmith key:remove`    | Remove key after confirmation   |
+| `gitsmith key:reset`     | Alias for `key:remove`          |
 | `gitsmith key:status`    | Show provider/source/saved time |
 
 ### CI and scripting
@@ -213,4 +222,3 @@ npm publish
 - License: MIT
 - Contributions welcome via pull requests
 - See `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
-

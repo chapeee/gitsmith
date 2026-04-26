@@ -31,25 +31,23 @@ function mapAiErrorToMessage(error) {
   return "AI request failed (unknown). Falling back to manual.";
 }
 
-async function tryAiFlow(config, commandOptions) {
-  console.log(
-    `[TRACE:ai-gate] hasAi=${Boolean(config.ai)} enabled=${config.ai?.enabled} aiMode=${commandOptions.aiMode}`
-  );
+export function shouldAskForAi(config, aiMode) {
   if (!config.ai || config.ai.enabled !== true) {
-    console.log("[TRACE:ai-gate] skip reason: ai block missing or disabled");
+    return false;
+  }
+  if (aiMode === "off") {
+    return false;
+  }
+  return aiMode === "force" || config.ai.askByDefault === true;
+}
+
+async function tryAiFlow(config, commandOptions) {
+  if (!shouldAskForAi(config, commandOptions.aiMode)) {
     return null;
   }
 
-  if (commandOptions.aiMode === "off") {
-    console.log("[TRACE:ai-gate] skip reason: --no-ai mode");
-    return null;
-  }
-
-  const wantsAi =
-    commandOptions.aiMode === "force" ? true : await askConfirm("Need AI help? (y/N)", false);
-  console.log(`[TRACE:ai-gate] wantsAi=${wantsAi}`);
+  const wantsAi = await askConfirm("Need AI help? (y/N)", false);
   if (!wantsAi) {
-    console.log("[TRACE:ai-gate] user declined AI");
     return null;
   }
 
@@ -65,8 +63,7 @@ async function tryAiFlow(config, commandOptions) {
   }
 
   if (!resolvedKey) {
-    console.log("[TRACE:ai-gate] no API key found from env/file");
-    console.log('No NVIDIA API key found. Run "gitsmith key:set". Falling back to manual.');
+    console.log('No NVIDIA API key found. Add one with "gitsmith key:set" to use AI suggestions. Falling back to manual.');
     return { mode: "manual", initialValues: {} };
   }
 
@@ -145,7 +142,6 @@ async function tryAiFlow(config, commandOptions) {
  */
 export async function runCommitCommand(commandOptions = {}) {
   try {
-    console.log(`[TRACE:commit] runCommitCommand options=${JSON.stringify(commandOptions)}`);
     console.log(pc.cyan("Preparing commit flow..."));
 
     await ensureInsideGitRepo();
@@ -155,7 +151,6 @@ export async function runCommitCommand(commandOptions = {}) {
     console.log(pc.green("Environment checks passed."));
 
     const aiResult = await tryAiFlow(config, commandOptions);
-    console.log(`[TRACE:commit] aiResultMode=${aiResult?.mode ?? "none"}`);
     const commitMessage =
       aiResult?.mode === "ai"
         ? aiResult.commitMessage

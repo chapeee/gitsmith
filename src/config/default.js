@@ -9,5 +9,9 @@ export const defaultConfig = {
   askTicket: false,
   askBreaking: true,
   format: "{type}({scope}): {message}",
-  headerMaxLength: 72
+  headerMaxLength: 72,
+  ai: {
+    enabled: true,
+    askByDefault: true
+  }
 };
