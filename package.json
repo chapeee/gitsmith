@@ -1,6 +1,6 @@
 {
   "name": "gitsmith",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stop writing inconsistent commit messages. GitSmith prompts you through your team's commit format so every commit follows the standard and your git history stays clean and trackable.",
   "type": "module",
   "bin": {
