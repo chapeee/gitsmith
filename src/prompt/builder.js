@@ -30,18 +30,47 @@ async function ask(question) {
   }
 }
 
-export async function collectCommitData(config) {
+export async function askConfirm(message, initial = false) {
+  return ask({
+    type: "confirm",
+    name: "confirmed",
+    message,
+    initial
+  });
+}
+
+export async function askText(message, initial = "", validate) {
+  return ask({
+    type: "input",
+    name: "value",
+    message,
+    initial,
+    validate
+  });
+}
+
+/**
+ * Asks manual commit questions. Optional initialValues are used to pre-fill answers.
+ * @param {object} config
+ * @param {{initialValues?: {type?: string, scope?: string, ticket?: string, message?: string, breaking?: boolean}}} options
+ */
+export async function collectCommitData(config, options = {}) {
+  const initial = options.initialValues ?? {};
+
   // Required: commit type always comes from the configured type list.
   const type = await ask({
     type: "select",
     name: "type",
     message: "Select commit type",
-    choices: config.types
+    choices: config.types,
+    initial: config.types.includes(initial.type) ? initial.type : undefined
   });
 
   let scope = "";
   if (config.askScope) {
     if (Array.isArray(config.scopes) && config.scopes.length > 0) {
+      const initialScopeInList = config.scopes.includes(initial.scope);
+      const initialSelectValue = initialScopeInList ? initial.scope : CUSTOM_SCOPE_CHOICE;
       // Teams can define fixed scopes, while still allowing ad-hoc "Other".
       const selectedScope = await ask({
         type: "select",
@@ -50,7 +79,8 @@ export async function collectCommitData(config) {
         choices: [
           ...config.scopes,
           { name: CUSTOM_SCOPE_CHOICE, message: "Other (type custom scope)" }
-        ]
+        ],
+        initial: initial.scope ? initialSelectValue : undefined
       });
 
       if (selectedScope === CUSTOM_SCOPE_CHOICE) {
@@ -58,7 +88,7 @@ export async function collectCommitData(config) {
           type: "input",
           name: "customScope",
           message: "Enter custom scope",
-          initial: "",
+          initial: initialScopeInList ? "" : String(initial.scope ?? ""),
           validate: (value) =>
             String(value).trim().length > 0 ? true : "Custom scope cannot be empty"
         });
@@ -71,7 +101,7 @@ export async function collectCommitData(config) {
         type: "input",
         name: "scope",
         message: "Enter scope (optional)",
-        initial: ""
+        initial: String(initial.scope ?? "")
       });
       scope = String(scopeInput ?? "").trim();
     }
@@ -85,7 +115,7 @@ export async function collectCommitData(config) {
       type: "input",
       name: "ticket",
       message: prefix ? `Ticket number (${prefix}*)` : "Ticket number (optional)",
-      initial: ""
+      initial: String(initial.ticket ?? "")
     });
     const ticketRaw = String(ticketInput ?? "").trim();
     ticket = ticketRaw ? `${prefix}${ticketRaw}` : "";
@@ -95,7 +125,7 @@ export async function collectCommitData(config) {
     type: "input",
     name: "message",
     message: "Commit message",
-    initial: "",
+    initial: String(initial.message ?? ""),
     validate: (value) => (String(value).trim().length > 0 ? true : "Message cannot be empty")
   });
   const message = String(messageInput).trim();
@@ -106,7 +136,7 @@ export async function collectCommitData(config) {
       type: "confirm",
       name: "breaking",
       message: "Is this a breaking change?",
-      initial: false
+      initial: Boolean(initial.breaking ?? false)
     });
   }
 
@@ -130,12 +160,7 @@ export async function collectCommitData(config) {
 
   console.log(`\n${pc.cyan("Preview:")} ${pc.bold(commitMessage)}\n`);
 
-  const confirmed = await ask({
-    type: "confirm",
-    name: "confirmed",
-    message: "Use this commit message?",
-    initial: true
-  });
+  const confirmed = await askConfirm("Use this commit message?", true);
 
   if (!confirmed) {
     console.log(pc.yellow("Commit cancelled."));

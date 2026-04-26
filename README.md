@@ -2,8 +2,10 @@
 
 GitSmith: configurable conventional commits CLI for teams and solo developers.
 
-`gitsmith` is installed once, then adapts to each project using a local `.commitconfig.json`.  
-No hardcoded commit format, no heavy setup, and no memorizing templates.
+**gitsmith** is a configurable Conventional Commits CLI that adapts to every project through a single `.commitconfig.json` file. Install it once globally, drop a config in any repo, and ship clean, consistent commits every time. Optional AI assist turns "what did you do?" into a perfectly formatted commit using a free NVIDIA model, so you stop fighting the type, scope, and wording every time you commit.
+
+
+![GitSmith demo](./assets/commit.gif)
 
 ## Features (v1)
 
@@ -35,20 +37,20 @@ gitsmith --help
 cd your-project
 ```
 
-2. Initialize config:
+1. Initialize config:
 
 ```bash
 gitsmith init
 ```
 
-3. Edit `.commitconfig.json` as needed.
-4. Stage files:
+1. Edit `.commitconfig.json` as needed.
+2. Stage files:
 
 ```bash
 git add .
 ```
 
-5. Run commit flow:
+1. Run commit flow:
 
 ```bash
 gitsmith
@@ -59,6 +61,10 @@ gitsmith
 - `gitsmith` or `gitsmith commit`: Start interactive commit flow
 - `gitsmith init`: Create `.commitconfig.json` in current directory
 - `gitsmith init --force`: Overwrite existing config
+- `gitsmith key:set [key]`: Save or overwrite NVIDIA API key
+- `gitsmith key:show`: Show masked key
+- `gitsmith key:remove`: Remove saved key
+- `gitsmith key:status`: Show saved key status
 
 ## Config Schema
 
@@ -116,6 +122,66 @@ final commit header:
 feat(auth): PROJ-123 add login flow
 ```
 
+## AI-assisted commits
+
+AI is optional and fully additive. If your project has no `ai` block, behavior stays exactly the same.
+
+### Quick start
+
+```bash
+npm install -g gitsmith
+gitsmith key:set
+gitsmith
+```
+
+### Free NVIDIA API key
+
+Get a free key from [build.nvidia.com](https://build.nvidia.com).
+
+### Enable AI in `.commitconfig.json`
+
+```json
+{
+  "types": ["feat", "fix", "docs", "chore", "refactor", "test", "style"],
+  "askScope": true,
+  "scopes": ["auth", "ui", "api", "db", "config"],
+  "askTicket": false,
+  "askBreaking": true,
+  "format": "{type}({scope}): {message}",
+  "ai": {
+    "enabled": true,
+    "provider": "nvidia",
+    "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+    "askByDefault": true,
+    "allowNewScopes": true
+  }
+}
+```
+
+### Key management
+
+| Command                  | Purpose                         |
+| ------------------------ | ------------------------------- |
+| `gitsmith key:set`       | Prompt and save key             |
+| `gitsmith key:set <key>` | Save key non-interactively      |
+| `gitsmith key:show`      | Show masked key                 |
+| `gitsmith key:remove`    | Remove key after confirmation   |
+| `gitsmith key:status`    | Show provider/source/saved time |
+
+### CI and scripting
+
+Set `GITSMITH_AI_KEY` in the environment. It overrides the saved local file.
+
+### Privacy note
+
+Only the free-text description entered by the user is sent to AI. Source code and git diffs are not sent.
+
+### AI flags
+
+- `gitsmith --ai`: force AI prompt for this run
+- `gitsmith --no-ai`: skip AI prompt for this run
+
 ## Local Development
 
 ```bash
@@ -147,3 +213,4 @@ npm publish
 - License: MIT
 - Contributions welcome via pull requests
 - See `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
+

@@ -2,6 +2,12 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { runCommitCommand } from "./commands/commit.js";
 import { runInitCommand } from "./commands/init.js";
+import {
+  runKeyRemoveCommand,
+  runKeySetCommand,
+  runKeyShowCommand,
+  runKeyStatusCommand
+} from "./commands/key.js";
 
 /**
  * Bootstraps the CLI program and registers all public commands.
@@ -26,8 +32,50 @@ export function runCli() {
   program
     .command("commit", { isDefault: true })
     .description("Create commit message from project config and run git commit")
+    .option("--ai", "Force AI prompt for this run")
+    .option("--no-ai", "Skip AI prompt for this run")
     .action(async () => {
-      await runCommitCommand();
+      const aiMode = process.argv.includes("--no-ai")
+        ? "off"
+        : process.argv.includes("--ai")
+          ? "force"
+          : "auto";
+      await runCommitCommand({ aiMode });
+    });
+
+  program
+    .command("key:set [key]")
+    .description("Save or overwrite NVIDIA API key")
+    .action(async (key) => {
+      await runKeySetCommand(key);
+    });
+
+  program
+    .command("key:show")
+    .description("Show saved key in masked form")
+    .action(async () => {
+      await runKeyShowCommand();
+    });
+
+  program
+    .command("key:remove")
+    .description("Remove saved NVIDIA API key")
+    .action(async () => {
+      await runKeyRemoveCommand();
+    });
+
+  program
+    .command("key:reset")
+    .description("Alias for key:remove")
+    .action(async () => {
+      await runKeyRemoveCommand();
+    });
+
+  program
+    .command("key:status")
+    .description("Show saved key status")
+    .action(async () => {
+      await runKeyStatusCommand();
     });
 
   program.configureOutput({

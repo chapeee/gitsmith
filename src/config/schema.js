@@ -3,6 +3,16 @@ import { z } from "zod";
 // Tokens supported by the format engine (e.g. "{type}({scope}): {message}").
 const formatTokenRegex = /\{(type|scope|ticket|message|breaking)\}/g;
 const allowedTokens = new Set(["type", "scope", "ticket", "message", "breaking"]);
+const aiSchema = z
+  .object({
+    enabled: z.boolean(),
+    provider: z.literal("nvidia").optional(),
+    model: z.string().min(1, "ai.model cannot be empty").optional(),
+    endpoint: z.string().url("ai.endpoint must be a valid URL").optional(),
+    askByDefault: z.boolean().optional(),
+    allowNewScopes: z.boolean().optional()
+  })
+  .optional();
 
 // Base schema plus cross-field validation rules.
 const baseSchema = z
@@ -14,7 +24,8 @@ const baseSchema = z
     ticketPrefix: z.string().optional(),
     askBreaking: z.boolean(),
     format: z.string().min(1, "format is required"),
-    headerMaxLength: z.number().int().positive().optional()
+    headerMaxLength: z.number().int().positive().optional(),
+    ai: aiSchema
   })
   .superRefine((config, ctx) => {
     if (config.askScope && Array.isArray(config.scopes) && config.scopes.length === 0) {
