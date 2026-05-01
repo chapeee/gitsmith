@@ -1,6 +1,8 @@
 import enquirer from "enquirer";
 import pc from "picocolors";
+import readline from "node:readline";
 import { buildCommitMessage } from "../format/template.js";
+import { suggestMentionedFiles } from "../ai/file-context.js";
 
 const { prompt } = enquirer;
 // Reserved sentinel value used to detect custom scope selection.
@@ -46,6 +48,241 @@ export async function askText(message, initial = "", validate) {
     message,
     initial,
     validate
+  });
+}
+
+function getActiveMention(text, cursor) {
+  let i = cursor - 1;
+  while (i >= 0 && !/\s/.test(text[i])) {
+    if (text[i] === "@" && (i === 0 || /\s/.test(text[i - 1]))) {
+      let end = cursor;
+      while (end < text.length && !/\s/.test(text[end])) {
+        end += 1;
+      }
+      return {
+        start: i,
+        end,
+        query: text.slice(i + 1, cursor)
+      };
+    }
+    i -= 1;
+  }
+  return null;
+}
+
+function renderMentionPrompt({
+  message,
+  input,
+  cursor,
+  suggestions,
+  selectedSuggestion,
+  previousRows
+}) {
+  if (previousRows > 0) {
+    process.stdout.write(`\u001b[${previousRows}F`);
+  }
+  process.stdout.write("\u001b[J");
+
+  const suggestionLine =
+    suggestions.length > 0
+      ? suggestions
+          .map((entry, index) => (index === selectedSuggestion ? `[${entry}]` : entry))
+          .join(" | ")
+      : "";
+
+  process.stdout.write(`${message} ${input}\n`);
+  if (suggestionLine) {
+    process.stdout.write(`${pc.cyan("File suggestions:")} ${suggestionLine}\n`);
+  }
+
+  const rows = suggestionLine ? 2 : 1;
+  if (rows > 1) {
+    process.stdout.write(`\u001b[${rows - 1}F`);
+  }
+  process.stdout.write("\r");
+  process.stdout.write(`\u001b[${message.length + 1 + cursor}C`);
+
+  return rows;
+}
+
+/**
+ * Input prompt with inline @file mention suggestions.
+ * Arrow up/down: pick suggestion, Tab/Enter: insert selected suggestion.
+ */
+export async function askTextWithFileMentions({
+  message,
+  initial = "",
+  validate,
+  repositoryFiles = [],
+  suggestionLimit = 12
+}) {
+  if (!process.stdin.isTTY) {
+    return askText(message, initial, validate);
+  }
+
+  const files = Array.isArray(repositoryFiles) ? repositoryFiles : [];
+  if (files.length === 0) {
+    return askText(message, initial, validate);
+  }
+
+  return new Promise((resolve, reject) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: true
+    });
+
+    if (typeof process.stdin.setRawMode === "function") {
+      process.stdin.setRawMode(true);
+    }
+    readline.emitKeypressEvents(process.stdin, rl);
+
+    let input = String(initial ?? "");
+    let cursor = input.length;
+    let suggestions = [];
+    let selectedSuggestion = 0;
+    let previousRows = 0;
+
+    const cleanup = () => {
+      process.stdin.removeListener("keypress", onKeypress);
+      if (typeof process.stdin.setRawMode === "function") {
+        process.stdin.setRawMode(false);
+      }
+      rl.close();
+    };
+
+    const refreshSuggestions = () => {
+      const active = getActiveMention(input, cursor);
+      if (!active) {
+        suggestions = [];
+        selectedSuggestion = 0;
+        return null;
+      }
+      suggestions = suggestMentionedFiles(files, active.query, suggestionLimit);
+      if (selectedSuggestion >= suggestions.length) {
+        selectedSuggestion = 0;
+      }
+      return active;
+    };
+
+    const applySelectedSuggestion = (activeMention) => {
+      if (!activeMention || suggestions.length === 0) {
+        return false;
+      }
+      const picked = suggestions[selectedSuggestion];
+      input = `${input.slice(0, activeMention.start + 1)}${picked}${input.slice(activeMention.end)}`;
+      cursor = activeMention.start + 1 + picked.length;
+      return true;
+    };
+
+    const render = () => {
+      const active = refreshSuggestions();
+      previousRows = renderMentionPrompt({
+        message,
+        input,
+        cursor,
+        suggestions,
+        selectedSuggestion,
+        previousRows
+      });
+      return active;
+    };
+
+    const finish = () => {
+      const value = String(input ?? "");
+      if (typeof validate === "function") {
+        const validationResult = validate(value);
+        if (validationResult !== true) {
+          console.log(`\n${pc.yellow(String(validationResult))}`);
+          render();
+          return;
+        }
+      }
+      process.stdout.write("\n");
+      cleanup();
+      resolve(value);
+    };
+
+    const onKeypress = (_str, key = {}) => {
+      if (key.ctrl && key.name === "c") {
+        process.stdout.write(`\n${pc.yellow("Commit cancelled.")}\n`);
+        cleanup();
+        process.exit(0);
+      }
+
+      const active = getActiveMention(input, cursor);
+
+      if (key.name === "up") {
+        if (suggestions.length > 0) {
+          selectedSuggestion = (selectedSuggestion - 1 + suggestions.length) % suggestions.length;
+        }
+        render();
+        return;
+      }
+
+      if (key.name === "down") {
+        if (suggestions.length > 0) {
+          selectedSuggestion = (selectedSuggestion + 1) % suggestions.length;
+        }
+        render();
+        return;
+      }
+
+      if (key.name === "tab") {
+        applySelectedSuggestion(active);
+        render();
+        return;
+      }
+
+      if (key.name === "return") {
+        const usedSuggestion = applySelectedSuggestion(active);
+        if (usedSuggestion) {
+          render();
+          return;
+        }
+        finish();
+        return;
+      }
+
+      if (key.name === "left") {
+        cursor = Math.max(0, cursor - 1);
+        render();
+        return;
+      }
+
+      if (key.name === "right") {
+        cursor = Math.min(input.length, cursor + 1);
+        render();
+        return;
+      }
+
+      if (key.name === "backspace") {
+        if (cursor > 0) {
+          input = `${input.slice(0, cursor - 1)}${input.slice(cursor)}`;
+          cursor -= 1;
+        }
+        render();
+        return;
+      }
+
+      if (key.name === "delete") {
+        if (cursor < input.length) {
+          input = `${input.slice(0, cursor)}${input.slice(cursor + 1)}`;
+        }
+        render();
+        return;
+      }
+
+      const char = key.sequence;
+      if (char && !key.ctrl && !key.meta && char >= " ") {
+        input = `${input.slice(0, cursor)}${char}${input.slice(cursor)}`;
+        cursor += char.length;
+        render();
+      }
+    };
+
+    process.stdin.on("keypress", onKeypress);
+    render();
   });
 }
 

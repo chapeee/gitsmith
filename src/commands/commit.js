@@ -5,10 +5,20 @@ import {
   AiValidationError,
   suggestCommit
 } from "../ai/nvidia.js";
+import {
+  extractMentionedFiles,
+  getRepositoryFileIndex,
+  loadMentionedFileContexts
+} from "../ai/file-context.js";
 import { loadValidatedConfig } from "../config/loader.js";
 import { buildCommitMessage } from "../format/template.js";
-import { askConfirm, askText, collectCommitData } from "../prompt/builder.js";
-import { createCommit, ensureInsideGitRepo, ensureStagedFiles } from "../git/executor.js";
+import { askConfirm, askTextWithFileMentions, collectCommitData } from "../prompt/builder.js";
+import {
+  createCommit,
+  ensureInsideGitRepo,
+  ensureStagedFiles,
+  getRepoRoot
+} from "../git/executor.js";
 import { CredentialsReadError } from "../ai/credentials.js";
 import { resolveApiKeyWithoutPrompt } from "./key.js";
 
@@ -67,9 +77,43 @@ async function tryAiFlow(config, commandOptions) {
     return { mode: "manual", initialValues: {} };
   }
 
-  const descriptionInput = await askText("What did you do?", "");
-  const description = String(descriptionInput ?? "").trim();
-  if (!description) {
+  const repoRoot = await getRepoRoot();
+  let repositoryFiles = [];
+  try {
+    repositoryFiles = await getRepositoryFileIndex(repoRoot);
+  } catch {
+    // Non-fatal: commit flow still works without suggestions.
+    repositoryFiles = [];
+  }
+
+  const descriptionInput = await askTextWithFileMentions({
+    message: "What did you do?",
+    initial: "",
+    repositoryFiles,
+    suggestionLimit: config.ai.mentionSuggestionLimit
+  });
+  const parsed = extractMentionedFiles(descriptionInput);
+  const description = String(parsed.cleaned ?? "").trim();
+
+  const fileContextResult = await loadMentionedFileContexts({
+    repoRoot,
+    mentions: parsed.mentioned,
+    extraPaths: commandOptions.contextFiles,
+    maxFileLines: config.ai.maxContextFileLines,
+    maxTotalLines: config.ai.maxContextTotalLines
+  });
+
+  for (const warning of fileContextResult.warnings) {
+    console.log(pc.yellow(`Context warning: ${warning}`));
+  }
+  if (fileContextResult.contexts.length > 0) {
+    const listedPaths = fileContextResult.contexts.map((entry) => entry.path).join(", ");
+    console.log(pc.cyan(`AI context files loaded (${fileContextResult.contexts.length}): ${listedPaths}`));
+  }
+
+  const hasDescription = description.length > 0;
+  const hasFileContext = fileContextResult.contexts.length > 0;
+  if (!hasDescription && !hasFileContext) {
     return { mode: "manual", initialValues: {} };
   }
 
@@ -82,7 +126,12 @@ async function tryAiFlow(config, commandOptions) {
     frameIndex += 1;
   }, 90);
   try {
-    suggestion = await suggestCommit({ description, config, apiKey: resolvedKey });
+    suggestion = await suggestCommit({
+      description: hasDescription ? description : "Use referenced files to infer commit summary.",
+      fileContexts: fileContextResult.contexts,
+      config,
+      apiKey: resolvedKey
+    });
   } catch (error) {
     clearInterval(spinnerId);
     process.stdout.write("\r");

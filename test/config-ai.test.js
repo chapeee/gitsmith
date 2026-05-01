@@ -36,4 +36,7 @@ test("withAiDefaults fills ai defaults for partial enabled block", () => {
   assert.equal(result.ai.endpoint, "https://integrate.api.nvidia.com/v1/chat/completions");
   assert.equal(result.ai.askByDefault, true);
   assert.equal(result.ai.allowNewScopes, true);
+  assert.equal(result.ai.maxContextFileLines, 500);
+  assert.equal(result.ai.maxContextTotalLines, 1500);
+  assert.equal(result.ai.mentionSuggestionLimit, 12);
 });

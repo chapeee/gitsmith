@@ -34,13 +34,19 @@ export function runCli() {
     .description("Create commit message from project config and run git commit")
     .option("--ai", "Force AI prompt for this run")
     .option("--no-ai", "Skip AI prompt for this run")
-    .action(async () => {
+    .option(
+      "-c, --context-file <path>",
+      "Include file contents as AI context (repeatable)",
+      (value, previous) => [...previous, value],
+      []
+    )
+    .action(async (options) => {
       const aiMode = process.argv.includes("--no-ai")
         ? "off"
         : process.argv.includes("--ai")
           ? "force"
           : "auto";
-      await runCommitCommand({ aiMode });
+      await runCommitCommand({ aiMode, contextFiles: options.contextFile ?? [] });
     });
 
   program
@@ -90,6 +96,8 @@ Examples:
   gitsmith
   gitsmith --ai
   gitsmith --no-ai
+  gitsmith --context-file src/auth/login.ts
+  gitsmith --context-file src/auth/login.ts --context-file README.md
   gitsmith init --force
   gitsmith key:set
   gitsmith key:show

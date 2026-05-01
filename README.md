@@ -93,6 +93,7 @@ gitsmith
 - `gitsmith` or `gitsmith commit`: Start interactive commit flow
 - `gitsmith --ai`: Force AI prompt for this run
 - `gitsmith --no-ai`: Skip AI prompt for this run
+- `gitsmith --context-file <path>`: Add one or more reference files to AI context
 - `gitsmith init`: Create `.commitconfig.json` in current directory
 - `gitsmith init --force`: Overwrite existing config
 - `gitsmith key:set [key]`: Save or overwrite NVIDIA API key
@@ -215,12 +216,36 @@ Set `GITSMITH_AI_KEY` in the environment. It overrides the saved local file.
 
 ### Privacy note
 
-Only the free-text description entered by the user is sent to AI. Source code and git diffs are not sent.
+By default, only the free-text description is sent to AI. If you use `@file` mentions or
+`--context-file`, the referenced file contents are also included as read-only context.
 
 ### AI flags
 
 - `gitsmith --ai`: force AI prompt for this run
 - `gitsmith --no-ai`: skip AI prompt for this run
+- `gitsmith --context-file <path>`: include file content as AI context (repeatable)
+
+### `@file` context mentions
+
+When AI prompt asks `What did you do?`, you can reference files inline:
+
+```text
+Refactor auth checks @src/auth/login.ts and update docs @README.md
+```
+
+- Type `@` to trigger file suggestions from your repository
+- Use Arrow Up/Down to move, then Tab or Enter to select a file
+- Multiple mentions are supported in one message
+- Mention tokens are removed before sending your natural-language description to AI
+- Referenced files are sent as a separate prompt section
+
+### AI context safety settings
+
+Inside `.commitconfig.json` under `ai`:
+
+- `maxContextFileLines` (default: `500`)
+- `maxContextTotalLines` (default: `1500`)
+- `mentionSuggestionLimit` (default: `12`)
 
 ## Local Development
 

@@ -10,6 +10,7 @@ RULES
 5. If "askTicket" is true and the developer's description mentions a ticket id (like JIRA-123, #456, ABC-9), return it in "ticket". Otherwise return null.
 6. Do NOT apply the "format" template yourself. Just return the parts. The CLI will format the final commit string.
 7. Respond with ONLY a valid JSON object. No markdown fences, no commentary, no explanation, no extra keys.
+8. When "Referenced files" are present, treat them as primary context. Extract concrete intent from them and combine with "What I did". Do not ignore file context.
 
 OUTPUT SCHEMA
 {
@@ -45,12 +46,24 @@ export class AiValidationError extends Error {
   }
 }
 
-function buildUserPrompt(config, description) {
+function buildUserPrompt(config, description, fileContexts = []) {
+  const filesSection =
+    fileContexts.length > 0
+      ? `\nReferenced files (read-only context, may be unchanged in this commit):\n${fileContexts
+          .map(
+            (file) =>
+              `\n--- FILE: ${file.path} (${file.lineCount} lines) ---\n${String(file.content ?? "")}\n--- END FILE ---`
+          )
+          .join("\n")}`
+      : "";
+
   return `types: ${JSON.stringify(config.types)}
 scopes: ${JSON.stringify(config.scopes || [])}
 askScope: ${config.askScope}, askTicket: ${config.askTicket}, askBreaking: ${config.askBreaking}, allowNewScopes: ${config.ai.allowNewScopes}
+referencedFilesCount: ${fileContexts.length}
 
 What I did: ${description}
+${filesSection}
 
 Return the JSON object only.`;
 }
@@ -63,26 +76,71 @@ function stripJsonFence(text) {
     .trim();
 }
 
+function pickClosestScope(candidate, scopes) {
+  const target = String(candidate ?? "").trim().toLowerCase();
+  if (!target || !Array.isArray(scopes) || scopes.length === 0) {
+    return null;
+  }
+
+  if (scopes.includes(target)) {
+    return target;
+  }
+
+  const withScore = scopes.map((scope) => {
+    const value = String(scope ?? "").toLowerCase();
+    let score = 0;
+    if (value.includes(target) || target.includes(value)) {
+      score += 4;
+    }
+    for (const char of target) {
+      if (value.includes(char)) {
+        score += 1;
+      }
+    }
+    return { scope: value, score };
+  });
+
+  withScore.sort((a, b) => b.score - a.score);
+  return withScore[0]?.score > 0 ? withScore[0].scope : null;
+}
+
+function normalizeScopeResult(result, config) {
+  const configuredScopes = Array.isArray(config.scopes) ? config.scopes : [];
+  const scopeRaw = typeof result.scope === "string" ? result.scope.trim() : "";
+  const knownScope = configuredScopes.includes(scopeRaw);
+
+  if (knownScope) {
+    result.scope = scopeRaw;
+    result.scopeIsNew = false;
+    return;
+  }
+
+  if (config.ai.allowNewScopes === true && scopeRaw) {
+    const normalized = scopeRaw.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (normalized) {
+      result.scope = normalized;
+      result.scopeIsNew = true;
+      return;
+    }
+  }
+
+  if (configuredScopes.length > 0) {
+    const closest = pickClosestScope(scopeRaw, configuredScopes) ?? configuredScopes[0];
+    result.scope = closest;
+    result.scopeIsNew = false;
+    return;
+  }
+
+  throw new AiValidationError("scope", "AI suggested an invalid scope.");
+}
+
 function validateSuggestion(result, config) {
   if (!config.types.includes(result.type)) {
     throw new AiValidationError("type", "AI suggested an invalid type.");
   }
 
   if (config.askScope) {
-    const scope = result.scope;
-    if (!scope || typeof scope !== "string") {
-      throw new AiValidationError("scope", "AI suggested an invalid scope.");
-    }
-
-    const isKnownScope = Array.isArray(config.scopes) && config.scopes.includes(scope);
-    const isNewScopeAllowed =
-      config.ai.allowNewScopes === true &&
-      result.scopeIsNew === true &&
-      /^[a-z0-9]+$/.test(scope);
-
-    if (!isKnownScope && !isNewScopeAllowed) {
-      throw new AiValidationError("scope", "AI suggested an invalid scope.");
-    }
+    normalizeScopeResult(result, config);
   } else if (result.scope !== null || result.scopeIsNew !== false) {
     throw new AiValidationError("scope", "AI suggested an invalid scope.");
   }
@@ -108,7 +166,7 @@ function validateSuggestion(result, config) {
   }
 }
 
-export async function suggestCommit({ description, config, apiKey }) {
+export async function suggestCommit({ description, fileContexts = [], config, apiKey }) {
   const endpoint = config.ai.endpoint;
   const model = config.ai.model;
 
@@ -124,7 +182,7 @@ export async function suggestCommit({ description, config, apiKey }) {
         model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildUserPrompt(config, description) }
+          { role: "user", content: buildUserPrompt(config, description, fileContexts) }
         ],
         temperature: 0.2,
         top_p: 0.9,

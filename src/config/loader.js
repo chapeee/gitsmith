@@ -8,7 +8,10 @@ const aiDefaults = {
   model: "nvidia/llama-3.3-nemotron-super-49b-v1",
   endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
   askByDefault: true,
-  allowNewScopes: true
+  allowNewScopes: true,
+  maxContextFileLines: 500,
+  maxContextTotalLines: 1500,
+  mentionSuggestionLimit: 12
 };
 
 /**

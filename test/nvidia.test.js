@@ -146,7 +146,7 @@ test("suggestCommit maps non-OK responses to AiNetworkError with status", async 
   global.fetch = originalFetch;
 });
 
-test("suggestCommit rejects unknown scope when allowNewScopes is false", async () => {
+test("suggestCommit maps unknown scope to nearest configured scope when allowNewScopes is false", async () => {
   const originalFetch = global.fetch;
   const lockedScopeConfig = {
     ...baseConfig,
@@ -177,9 +177,60 @@ test("suggestCommit rejects unknown scope when allowNewScopes is false", async (
     })
   });
 
-  await assert.rejects(
-    () => suggestCommit({ description: "added payments", config: lockedScopeConfig, apiKey: "nvapi-test" }),
-    (error) => error instanceof AiValidationError && error.field === "scope"
-  );
+  const result = await suggestCommit({
+    description: "added payments",
+    config: lockedScopeConfig,
+    apiKey: "nvapi-test"
+  });
+
+  assert.equal(result.scope, "api");
+  assert.equal(result.scopeIsNew, false);
+  global.fetch = originalFetch;
+});
+
+test("suggestCommit includes referenced file contents in prompt payload", async () => {
+  const originalFetch = global.fetch;
+  let capturedBody = null;
+  global.fetch = async (_url, options = {}) => {
+    capturedBody = JSON.parse(String(options.body ?? "{}"));
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                type: "feat",
+                scope: "api",
+                scopeIsNew: false,
+                message: "add endpoint input validation",
+                isBreaking: false,
+                ticket: null,
+                reason: "api improvement"
+              })
+            }
+          }
+        ]
+      })
+    };
+  };
+
+  await suggestCommit({
+    description: "updated validation",
+    fileContexts: [
+      {
+        path: "src/api/validator.ts",
+        lineCount: 3,
+        content: "export function validate() {\n  return true;\n}\n"
+      }
+    ],
+    config: baseConfig,
+    apiKey: "nvapi-test"
+  });
+
+  const promptText = capturedBody?.messages?.[1]?.content ?? "";
+  assert.match(promptText, /Referenced files/);
+  assert.match(promptText, /src\/api\/validator\.ts/);
+  assert.match(promptText, /export function validate/);
   global.fetch = originalFetch;
 });

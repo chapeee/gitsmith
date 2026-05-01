@@ -15,6 +15,23 @@ export async function ensureInsideGitRepo() {
 }
 
 /**
+ * Returns absolute git repository root path.
+ * @returns {Promise<string>}
+ */
+export async function getRepoRoot() {
+  try {
+    const { stdout } = await execa("git", ["rev-parse", "--show-toplevel"]);
+    const root = stdout.trim();
+    if (!root) {
+      throw new Error("empty git root");
+    }
+    return root;
+  } catch {
+    throw new Error("Could not resolve git repository root.");
+  }
+}
+
+/**
  * Ensures there are staged changes ready to commit.
  */
 export async function ensureStagedFiles() {
