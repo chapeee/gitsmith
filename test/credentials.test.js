@@ -4,11 +4,13 @@ import { mkdtemp, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  getProviderModel,
   getProviderApiKey,
   getProviderStatus,
   getCredentialsPath,
   removeProviderApiKey,
-  saveProviderApiKey
+  saveProviderApiKey,
+  saveProviderModel
 } from "../src/ai/credentials.js";
 
 async function createHomeDir() {
@@ -69,4 +71,13 @@ test("status returns masked key output", async () => {
   assert.equal(status.hasKey, true);
   assert.match(status.maskedKey, /^nvapi-abcd/);
   assert.ok(status.maskedKey.includes("*"));
+});
+
+test("saved model is returned from credentials file", async () => {
+  const homeDir = await createHomeDir();
+  await saveProviderModel("qwen/qwen3-coder-30b", { homeDir });
+
+  const resolved = await getProviderModel({ homeDir });
+  assert.equal(resolved.source, "file");
+  assert.equal(resolved.model, "qwen/qwen3-coder-30b");
 });

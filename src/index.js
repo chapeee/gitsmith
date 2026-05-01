@@ -8,6 +8,13 @@ import {
   runKeyShowCommand,
   runKeyStatusCommand
 } from "./commands/key.js";
+import {
+  runModelCurrentCommand,
+  runModelListCommand,
+  runModelPickCommand,
+  runModelSetCommand,
+  runModelSwitchCommand
+} from "./commands/model.js";
 
 /**
  * Bootstraps the CLI program and registers all public commands.
@@ -34,6 +41,7 @@ export function runCli() {
     .description("Create commit message from project config and run git commit")
     .option("--ai", "Force AI prompt for this run")
     .option("--no-ai", "Skip AI prompt for this run")
+    .option("-m, --model <model-id>", "Use a model for this run only")
     .option(
       "-c, --context-file <path>",
       "Include file contents as AI context (repeatable)",
@@ -46,7 +54,46 @@ export function runCli() {
         : process.argv.includes("--ai")
           ? "force"
           : "auto";
-      await runCommitCommand({ aiMode, contextFiles: options.contextFile ?? [] });
+      await runCommitCommand({
+        aiMode,
+        contextFiles: options.contextFile ?? [],
+        model: options.model ?? null
+      });
+    });
+
+  const modelCommand = program
+    .command("model")
+    .description("Manage default NVIDIA model")
+    .action(async () => {
+      await runModelPickCommand();
+    });
+
+  modelCommand
+    .command("list")
+    .description("Show supported models")
+    .action(async () => {
+      await runModelListCommand();
+    });
+
+  modelCommand
+    .command("current")
+    .description("Show current default model")
+    .action(async () => {
+      await runModelCurrentCommand();
+    });
+
+  modelCommand
+    .command("set <model-id>")
+    .description("Set default model non-interactively")
+    .action(async (modelId) => {
+      await runModelSetCommand(modelId);
+    });
+
+  modelCommand
+    .command("switch")
+    .description("Interactively select model and verify availability before saving")
+    .action(async () => {
+      await runModelSwitchCommand();
     });
 
   program
@@ -96,8 +143,14 @@ Examples:
   gitsmith
   gitsmith --ai
   gitsmith --no-ai
+  gitsmith --model deepseek-ai/deepseek-v4-flash
   gitsmith --context-file src/auth/login.ts
   gitsmith --context-file src/auth/login.ts --context-file README.md
+  gitsmith model
+  gitsmith model list
+  gitsmith model current
+  gitsmith model set deepseek-ai/deepseek-v4-flash
+  gitsmith model switch
   gitsmith init --force
   gitsmith key:set
   gitsmith key:show

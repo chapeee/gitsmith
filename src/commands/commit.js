@@ -10,6 +10,8 @@ import {
   getRepositoryFileIndex,
   loadMentionedFileContexts
 } from "../ai/file-context.js";
+import { getProviderModel } from "../ai/credentials.js";
+import { getModelById, listModelIds, resolveModelSelection } from "../ai/models.js";
 import { loadValidatedConfig } from "../config/loader.js";
 import { buildCommitMessage } from "../format/template.js";
 import { askConfirm, askTextWithFileMentions, collectCommitData } from "../prompt/builder.js";
@@ -28,6 +30,13 @@ function mapAiErrorToMessage(error) {
   }
   if (error instanceof AiNetworkError && (error.status === 401 || error.status === 403)) {
     return 'NVIDIA rejected your API key. Run "gitsmith key:set" to update it. Falling back to manual.';
+  }
+  if (error instanceof AiNetworkError && error.status === 429) {
+    return `AI rate limited model "${error.modelId ?? "unknown"}" (HTTP 429). Try switching model with "gitsmith model" and retry. Falling back to manual.`;
+  }
+  if (error instanceof AiNetworkError && error.status === 404) {
+    const known = listModelIds().slice(0, 5).join(", ");
+    return `Model "${error.modelId ?? "unknown"}" is unavailable (HTTP 404). Try a known model: ${known}. Falling back to manual.`;
   }
   if (error instanceof AiNetworkError) {
     return `AI request failed (${error.message}). Falling back to manual.`;
@@ -76,6 +85,26 @@ async function tryAiFlow(config, commandOptions) {
     console.log('No NVIDIA API key found. Add one with "gitsmith key:set" to use AI suggestions. Falling back to manual.');
     return { mode: "manual", initialValues: {} };
   }
+
+  const savedModelRecord = await getProviderModel();
+  if (commandOptions.model) {
+    const overrideExists = getModelById(commandOptions.model);
+    if (!overrideExists) {
+      const alternatives = listModelIds().slice(0, 5).join(", ");
+      throw new Error(
+        `Unknown model "${commandOptions.model}". Try one of: ${alternatives}. Run "gitsmith model list" for all models.`
+      );
+    }
+  }
+  const resolvedModel = resolveModelSelection(
+    savedModelRecord?.model,
+    config.ai.model,
+    commandOptions.model
+  );
+  if (resolvedModel.warning) {
+    console.log(pc.yellow(resolvedModel.warning));
+  }
+  console.log(pc.cyan(`Using model: ${resolvedModel.model.id} (${resolvedModel.model.name})`));
 
   const repoRoot = await getRepoRoot();
   let repositoryFiles = [];
@@ -130,7 +159,8 @@ async function tryAiFlow(config, commandOptions) {
       description: hasDescription ? description : "Use referenced files to infer commit summary.",
       fileContexts: fileContextResult.contexts,
       config,
-      apiKey: resolvedKey
+      apiKey: resolvedKey,
+      modelOverride: resolvedModel.model
     });
   } catch (error) {
     clearInterval(spinnerId);

@@ -234,3 +234,43 @@ test("suggestCommit includes referenced file contents in prompt payload", async 
   assert.match(promptText, /export function validate/);
   global.fetch = originalFetch;
 });
+
+test("suggestCommit uses model override for request model field", async () => {
+  const originalFetch = global.fetch;
+  let capturedBody = null;
+  global.fetch = async (_url, options = {}) => {
+    capturedBody = JSON.parse(String(options.body ?? "{}"));
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                type: "feat",
+                scope: "api",
+                scopeIsNew: false,
+                message: "add model override support",
+                isBreaking: false,
+                ticket: null,
+                reason: "model selected"
+              })
+            }
+          }
+        ]
+      })
+    };
+  };
+
+  await suggestCommit({
+    description: "test override",
+    config: baseConfig,
+    apiKey: "nvapi-test",
+    modelOverride: {
+      id: "qwen/qwen3-coder-30b"
+    }
+  });
+
+  assert.equal(capturedBody.model, "qwen/qwen3-coder-30b");
+  global.fetch = originalFetch;
+});

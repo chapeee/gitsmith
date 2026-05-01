@@ -93,6 +93,7 @@ gitsmith
 - `gitsmith` or `gitsmith commit`: Start interactive commit flow
 - `gitsmith --ai`: Force AI prompt for this run
 - `gitsmith --no-ai`: Skip AI prompt for this run
+- `gitsmith --model <model-id>`: Use a specific model for this run only
 - `gitsmith --context-file <path>`: Add one or more reference files to AI context
 - `gitsmith init`: Create `.commitconfig.json` in current directory
 - `gitsmith init --force`: Overwrite existing config
@@ -101,6 +102,11 @@ gitsmith
 - `gitsmith key:remove`: Remove saved key
 - `gitsmith key:reset`: Alias for `key:remove`
 - `gitsmith key:status`: Show saved key status
+- `gitsmith model`: Interactive model picker
+- `gitsmith model switch`: Interactive model picker + availability check
+- `gitsmith model list`: Show supported models
+- `gitsmith model current`: Show active default model
+- `gitsmith model set <model-id>`: Set default model
 
 ## Config Schema
 
@@ -223,7 +229,40 @@ By default, only the free-text description is sent to AI. If you use `@file` men
 
 - `gitsmith --ai`: force AI prompt for this run
 - `gitsmith --no-ai`: skip AI prompt for this run
+- `gitsmith --model <model-id>`: use a model for this run only
 - `gitsmith --context-file <path>`: include file content as AI context (repeatable)
+
+### Model switching
+
+Choose your default NVIDIA model once:
+
+```bash
+gitsmith model
+```
+
+Use verified switching flow (recommended):
+
+```bash
+gitsmith model switch
+```
+
+What `gitsmith model switch` does:
+
+- Shows the model list with descriptions
+- Lets you pick with arrow keys + Enter
+- Pings selected model before saving it
+- If model is unavailable, asks you to pick another
+- If API key is missing, shows: `gitsmith key:set [key]`
+
+Scriptable equivalents:
+
+```bash
+gitsmith model list
+gitsmith model current
+gitsmith model switch
+gitsmith model set deepseek-ai/deepseek-v4-flash
+gitsmith --model deepseek-ai/deepseek-v4-flash
+```
 
 ### `@file` context mentions
 

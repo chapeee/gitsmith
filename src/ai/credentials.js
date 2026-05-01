@@ -4,6 +4,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 
 const PROVIDER = "nvidia";
 const KEY_ENV_NAME = "GITSMITH_AI_KEY";
+const MODEL_ENV_NAME = "GITSMITH_AI_MODEL";
 
 export class CredentialsReadError extends Error {}
 
@@ -59,6 +60,37 @@ export async function saveProviderApiKey(apiKey, { homeDir } = {}) {
     savedAt: new Date().toISOString()
   };
   await writeCredentialsFile(credentials, { homeDir });
+}
+
+export async function saveProviderModel(model, { homeDir } = {}) {
+  const credentials = await readCredentialsFile({ homeDir });
+  const previous = credentials[PROVIDER] ?? {};
+  credentials[PROVIDER] = {
+    ...previous,
+    model: String(model).trim(),
+    modelSavedAt: new Date().toISOString()
+  };
+  await writeCredentialsFile(credentials, { homeDir });
+}
+
+export async function getProviderModel({ homeDir } = {}) {
+  const fromEnv = (process.env[MODEL_ENV_NAME] ?? "").trim();
+  if (fromEnv) {
+    return { model: fromEnv, source: "env", provider: PROVIDER, savedAt: null };
+  }
+
+  const credentials = await readCredentialsFile({ homeDir });
+  const providerRecord = credentials[PROVIDER];
+  const fromFile = String(providerRecord?.model ?? "").trim();
+  if (fromFile) {
+    return {
+      model: fromFile,
+      source: "file",
+      provider: PROVIDER,
+      savedAt: providerRecord?.modelSavedAt ?? providerRecord?.savedAt ?? null
+    };
+  }
+  return null;
 }
 
 export async function removeProviderApiKey({ homeDir } = {}) {

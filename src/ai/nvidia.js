@@ -24,10 +24,11 @@ OUTPUT SCHEMA
 }`;
 
 export class AiNetworkError extends Error {
-  constructor(message, status = null) {
+  constructor(message, status = null, modelId = null) {
     super(message);
     this.name = "AiNetworkError";
     this.status = status;
+    this.modelId = modelId;
   }
 }
 
@@ -166,9 +167,9 @@ function validateSuggestion(result, config) {
   }
 }
 
-export async function suggestCommit({ description, fileContexts = [], config, apiKey }) {
-  const endpoint = config.ai.endpoint;
-  const model = config.ai.model;
+export async function suggestCommit({ description, fileContexts = [], config, apiKey, modelOverride }) {
+  const endpoint = modelOverride?.baseUrl ?? config.ai.endpoint;
+  const model = modelOverride?.id ?? config.ai.model;
 
   let response;
   try {
@@ -192,11 +193,11 @@ export async function suggestCommit({ description, fileContexts = [], config, ap
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "network failure";
-    throw new AiNetworkError(message);
+    throw new AiNetworkError(message, null, model);
   }
 
   if (!response.ok) {
-    throw new AiNetworkError(`HTTP ${response.status}`, response.status);
+    throw new AiNetworkError(`HTTP ${response.status}`, response.status, model);
   }
 
   const payload = await response.json();
