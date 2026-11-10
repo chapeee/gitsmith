@@ -15,13 +15,51 @@
 
 <sub>Example: Claude Code. Other MCP clients show the same steps in their own UI. The Plan card is Claude Code's task list, not part of gitsmith.</sub>
 
+## Get started
+
 ```bash
 npm install -g gitsmith
-cd your-project && gitsmith init && gitsmith agents --mcp   # rules + AGENTS.md + .mcp.json
+cd your-project
+gitsmith init                 # creates .commitconfig.json with your commit rules
 ```
+
+Then pick how commits get made.
+
+### 1. MCP mode: Claude Code and AI agents
+
+The agent writes the message, and gitsmith checks it against your rules and commits it.
+
+```bash
+gitsmith agents --mcp         # registers gitsmith in .mcp.json and writes the rules to AGENTS.md
+```
+
+Or add it to Claude Code for every project:
+
+```bash
+claude mcp add gitsmith --scope user -- npx -y gitsmith mcp
+```
+
+Then just ask your agent: *"Commit my changes using gitsmith. Split unrelated work."* It calls `get_rules`, `get_status` and `commit`, and fixes and retries anything gitsmith rejects.
+
+### 2. Manual mode: you commit yourself
+
+```bash
+git add .
+gitsmith commit               # guided prompts: pick type, scope and message
+```
+
+```bash
+gitsmith -t feat -s api -m "add retry logic"   # or in one line, no prompts
+gitsmith check "feat(api): add retry logic"    # check a message without committing
+```
+
+**Optional for both modes:**
+- `gitsmith hook install` blocks bad messages from plain `git commit` too.
+- `gitsmith key:set` (a free NVIDIA key) makes plain `gitsmith` draft the message from your diff for you to approve.
 
 ## Contents
 
+- [Get started](#get-started)
 - [Why gitsmith](#why-gitsmith)
 - [How it works](#how-it-works)
 - [Overview](#overview)
