@@ -54,3 +54,9 @@ test("hook script is marked and calls gitsmith check with the message file", () 
   assert.ok(HOOK_SCRIPT.includes(HOOK_MARKER));
   assert.ok(HOOK_SCRIPT.includes('check --file "$1"'));
 });
+
+test("gitsmith init defaults to strict scopes and conventional message style", async () => {
+  const { defaultConfig } = await import("../src/config/default.js");
+  assert.equal(defaultConfig.strictScopes, true);
+  assert.equal(defaultConfig.messageStyle, "conventional");
+});

@@ -111,7 +111,7 @@ async function tryAiFlow(config, commandOptions) {
     }
   }
 
-  const { header: commitMessage, warnings } = buildAndValidate(
+  const { header: commitMessage, warnings, errors } = buildAndValidate(
     {
       type: suggestion.type,
       scope: suggestion.scope ?? "",
@@ -121,6 +121,21 @@ async function tryAiFlow(config, commandOptions) {
     },
     config
   );
+
+  // The AI broke a project rule: let the user fix it in the pre-filled manual flow.
+  if (errors.length > 0) {
+    console.log(pc.yellow(`AI suggestion breaks the rules (${errors.join(" ")}). Falling back to manual.`));
+    return {
+      mode: "manual",
+      initialValues: {
+        type: suggestion.type,
+        scope: suggestion.scope ?? "",
+        ticket: suggestion.ticket ?? "",
+        message: suggestion.message,
+        breaking: suggestion.isBreaking
+      }
+    };
+  }
 
   console.log(`\n${pc.cyan("AI Preview:")} ${pc.bold(commitMessage)}\n`);
   for (const warning of warnings) {

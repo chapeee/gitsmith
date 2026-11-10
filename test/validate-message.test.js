@@ -4,6 +4,7 @@ import {
   buildAndValidate,
   checkCommitMessage,
   formatToRegex,
+  messageStyleErrors,
   splitCommitMessage
 } from "../src/validate/message.js";
 
@@ -113,4 +114,24 @@ test("scope with spaces is an error even when not in the list", () => {
   const result = buildAndValidate({ type: "feat", scope: "my scope", message: "add x" }, config);
   assert.equal(result.ok, false);
   assert.match(result.errors[0], /cannot contain spaces/);
+});
+
+test("message style rejects a capitalised start and a trailing period", () => {
+  const result = checkCommitMessage("feat(api): Add checks.", config);
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.length, 2);
+  assert.match(result.errors[0], /lowercase letter: "add checks\."/);
+  assert.match(result.errors[1], /must not end with a period/);
+});
+
+test("message style allows acronyms at the start", () => {
+  assert.equal(checkCommitMessage("feat(api): API keys can rotate", config).ok, true);
+});
+
+test("messageStyle off disables the style check", () => {
+  assert.equal(checkCommitMessage("feat(api): Add checks.", { ...config, messageStyle: "off" }).ok, true);
+});
+
+test("messageStyleErrors is empty for a conventional summary", () => {
+  assert.deepEqual(messageStyleErrors("add retry logic", config), []);
 });
