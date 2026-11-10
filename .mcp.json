@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gitsmith": {
+      "command": "node",
+      "args": [
+        "bin/cli.js",
+        "mcp"
+      ]
+    }
+  }
+}

@@ -38,9 +38,10 @@ gitsmith fixes this from both sides:
 
 - **It writes the commit for you.** `gitsmith` on its own is an agent. It looks at what you staged, writes a message in your format, checks it against your rules and commits when you say so.
 - **It enforces the format for everyone else.** A `commit-msg` hook rejects bad messages from any source: people, IDEs or AI agents running plain `git commit`. The error says exactly what to fix.
-- **It works for machines too.** AI agents and scripts can commit without prompts, read the rules as JSON and get machine-readable results.
+- **It's a tool for AI agents.** Claude Code, Cursor and other agents connect over MCP and get typed tools: rules, status, diff, check and commit. The agent writes the message, because it knows what it changed, and gitsmith guarantees it follows your rules. Agents without MCP use the no-prompt CLI with JSON output.
+- **Rules are shareable.** A team publishes one rules file; every repo `extends` it and overrides only what's different.
 
-The rules live in a single `.commitconfig.json` in your repo. Install gitsmith once, add a config to each repo, and every commit comes out consistent.
+The rules live in `.commitconfig.json`. Install gitsmith once, add a config to each repo (or extend your team's), and every commit comes out consistent.
 
 ## Features
 
@@ -60,12 +61,22 @@ The rules live in a single `.commitconfig.json` in your repo. Install gitsmith o
 - `gitsmith check` validates any message without committing
 
 **Built for AI agents and scripts**
+- MCP server (`gitsmith mcp`) with `get_rules`, `get_status`, `get_diff`, `check_message` and `commit` tools
+- `gitsmith agents --mcp` registers it in `.mcp.json`, so Claude Code picks it up for the project
+- Split one change into several commits: `commit` with `files` (MCP) or `--files` (CLI)
 - No-prompt mode: `gitsmith -t feat -s api -m "add retry logic"`
 - `--json` output and exit code 1 on errors, so tools can react and retry
 - `gitsmith rules --json` tells an agent what is allowed
 - `gitsmith agents` writes the rules into `AGENTS.md`, `CLAUDE.md` or `.cursorrules`
 - `--co-author` and `--author` for crediting AI and pair work
 - Never hangs without a terminal: it exits with a hint instead
+
+**Shareable rules**
+- `"extends"`: built-in presets (`gitsmith:conventional`, `gitsmith:angular`, `gitsmith:minimal`), files, URLs and npm packages
+- Override any rule, or add to an inherited list with `"scopes+": [...]`
+- `gitsmith rules --resolved` shows which file set each rule; `gitsmith rules export` writes a file to share
+- Remote rules are cached, can be pinned by sha256, and keep working offline
+- A personal `.commitconfig.local.json` can change your AI settings but never loosen team rules
 
 **Safety**
 - Must be inside a git repo, with something staged
@@ -175,6 +186,7 @@ Options for committing:
 | `--body <text>` | Commit body |
 | `--co-author <person>` | Adds `Co-Authored-By: <person>`; repeatable; format `"Name <email>"` |
 | `--author <person>` | Sets the commit author; you stay the committer |
+| `--files <paths...>` | Commit only these paths (new files included); other staged changes stay staged |
 | `--dry-run` | Validate and show the header; commit nothing |
 | `--json` | Machine-readable output |
 
@@ -186,15 +198,25 @@ Options for committing:
 | `gitsmith check --file <path>` | Check a message file; used by the hook |
 | `gitsmith check --stdin` | Check a message from stdin |
 | `gitsmith rules [--json]` | Print the commit rules |
+| `gitsmith rules --resolved [--json]` | Show the `extends` chain and which file set each rule |
+| `gitsmith rules export [-o <file>]` | Write the resolved rules as one shareable JSON file |
 | `gitsmith hook install [--force]` | Install the `commit-msg` hook |
 | `gitsmith hook uninstall` | Remove the hook (only if gitsmith wrote it) |
+
+### AI agents
+
+| Command | What it does |
+| --- | --- |
+| `gitsmith mcp` | Run the MCP server over stdio (started by MCP clients, not by hand) |
 | `gitsmith agents [--file <paths...>]` | Write the rules into agent instruction files (default `AGENTS.md`) |
+| `gitsmith agents --mcp` | Also register the gitsmith MCP server in the project's `.mcp.json` |
 
 ### Setup and keys
 
 | Command | What it does |
 | --- | --- |
-| `gitsmith init [--force]` | Create `.commitconfig.json` |
+| `gitsmith init [--force]` | Create `.commitconfig.json` with the default rules |
+| `gitsmith init --from <rules>` | Create a config that extends shared rules (preset, file, URL or package) |
 | `gitsmith key:set [key]` | Save your NVIDIA API key; prompts if no key is given |
 | `gitsmith key:show` | Show the saved key, masked |
 | `gitsmith key:status` | Show the provider, the key source and when it was saved |
@@ -204,7 +226,48 @@ Options for committing:
 
 AI coding agents (Claude Code, Cursor, Copilot, Codex and others) can't answer interactive prompts, so they usually fall back to plain `git commit` and ignore your format. gitsmith gives them a proper path, and blocks them when they go around it.
 
-### 1. Tell agents the rules
+The split of work is simple: **the agent writes the message**, because it made the change and knows why; **gitsmith owns the rules**, checking, formatting and committing, and telling the agent exactly what to fix when something is off. No NVIDIA key is needed for this; the NVIDIA model only writes messages for people who run plain `gitsmith`.
+
+### 1. Connect over MCP (recommended)
+
+[MCP](https://modelcontextprotocol.io) is the standard way agents call tools. Register gitsmith for a project:
+
+```bash
+gitsmith agents --mcp        # adds gitsmith to .mcp.json and writes AGENTS.md
+```
+
+or add it to Claude Code yourself:
+
+```bash
+claude mcp add gitsmith -- npx -y gitsmith mcp
+```
+
+The agent then gets these tools:
+
+| Tool | What it does |
+| --- | --- |
+| `get_rules` | The rules: types, scopes (strict or not), format, message style, length, an example, and which file each rule came from |
+| `get_status` | Branch; staged, unstaged and untracked files; the last 5 commit subjects |
+| `get_diff` | The staged diff, or the diff for given paths |
+| `check_message` | Validate a message without committing |
+| `commit` | Validate and commit `type`, `scope`, `message` (plus `body`, `breaking`, `ticket`, `co_authors`, `author`, `dry_run`). With `files`, commits exactly those paths, so one change can become several commits |
+
+Every result is structured JSON. A failed call is marked as an error and lists exactly what to fix, so the agent corrects itself and calls again. The server also sends the agent a short workflow guide when it connects.
+
+A typical agent session:
+
+```text
+get_rules   → types feat|fix|..., scopes auth|ui|api|db|config (strict), lowercase, no period
+get_status  → untracked: src/api/retry.js, src/ui/banner.js
+commit      { type: "feat", scope: "api", message: "add retry logic", files: ["src/api/retry.js"] }
+            → ok, hash 1a2b3c4
+commit      { type: "feat", scope: "ui", message: "Add banner.", files: ["src/ui/banner.js"] }
+            → error: message must start with a lowercase letter; must not end with a period
+commit      { type: "feat", scope: "ui", message: "add banner", files: ["src/ui/banner.js"] }
+            → ok, hash 5d6e7f8
+```
+
+### 2. Tell agents the rules
 
 ```bash
 gitsmith agents                                  # writes a "Commit messages" section into AGENTS.md
@@ -234,7 +297,7 @@ gitsmith rules --json                            # the rules as JSON
 }
 ```
 
-### 2. Commit without prompts
+### 3. Commit without prompts (CLI)
 
 ```bash
 gitsmith -t feat -s api -m "add retry logic"
@@ -256,7 +319,7 @@ or, when something is wrong (exit code 1):
 
 An agent reads the errors, fixes the message and tries again.
 
-### 3. Let gitsmith be the agent
+### 4. Let gitsmith write the message (automation)
 
 When the environment has an API key, an automated job doesn't need to write the message at all:
 
@@ -266,7 +329,7 @@ GITSMITH_AI_KEY=... gitsmith --yes --all
 
 This stages everything, writes a commit that follows the rules and commits it. Without a terminal and without `--yes`, gitsmith refuses and explains, so it never hangs or reports a success that didn't happen.
 
-### 4. Enforce the format for every commit
+### 5. Enforce the format for every commit
 
 ```bash
 gitsmith hook install
@@ -291,7 +354,7 @@ How the hook behaves:
 - Without a `.commitconfig.json` it lets commits through.
 - It respects `core.hooksPath`, and it won't replace a hook it didn't write unless you pass `--force`.
 
-### 5. Credit AI and pair work
+### 6. Credit AI and pair work
 
 ```bash
 gitsmith --co-author "Claude <noreply@anthropic.com>"
@@ -330,6 +393,52 @@ gitsmith reads `.commitconfig.json`, searching upward from the current folder. `
 }
 ```
 
+### Sharing rules with `extends`
+
+Define rules once and reuse them everywhere. A config can extend:
+
+| Source | Example |
+| --- | --- |
+| Built-in preset | `"gitsmith:conventional"`, `"gitsmith:angular"`, `"gitsmith:minimal"` |
+| File | `"./rules/team.json"` (relative to the file that extends it) |
+| URL | `"https://raw.githubusercontent.com/acme/standards/main/commit-rules.json"` |
+| Pinned URL | `"https://.../commit-rules.json#sha256=<hash>"` (refuses changed content) |
+| npm package | `"@acme/gitsmith-rules"` (ships `gitsmith.json` or a JSON main file) |
+| Several | `["gitsmith:conventional", "./team.json"]`, applied in order |
+
+A repo that uses the team rules and changes only what's different:
+
+```json
+{
+  "extends": "@acme/gitsmith-rules",
+  "scopes+": ["billing"],
+  "headerMaxLength": 100,
+  "ai": { "enabled": true }
+}
+```
+
+How merging works:
+- Later sources win: presets and shared files first, in the order listed, then the project file.
+- Objects such as `ai` merge key by key.
+- Lists are replaced. Use `"key+"` to add to an inherited list: `"scopes+": ["billing"]` keeps the team's scopes and adds `billing`.
+- Shared files can extend other files, up to 10 levels; loops are reported.
+- URLs are cached in `~/.gitsmith/cache` for 24 hours, and the last good copy is used when you're offline.
+
+See the result, and where each rule came from:
+
+```text
+$ gitsmith rules --resolved
+Applied in order: gitsmith:conventional → team/acme.json → .commitconfig.json
+types            ["feat","fix","docs","chore","refactor","test","style"]  ← gitsmith:conventional
+scopes           ["billing","auth","infra"]  ← team/acme.json + .commitconfig.json
+headerMaxLength  100  ← .commitconfig.json
+...
+```
+
+Publish your own rules: `gitsmith rules export -o commit-rules.json` writes the resolved rules as one file, without the `ai` block, ready for other repos to extend. Start a new repo from shared rules with `gitsmith init --from <preset | file | URL | package>`.
+
+**Personal settings.** A `.commitconfig.local.json` next to the config (add it to `.gitignore`) can change only `ai.enabled`, `ai.model`, `ai.sendDiff` and `ai.askByDefault`. Anything else in it is ignored with a warning, so nobody can loosen the team's rules locally.
+
 ### Options
 
 | Key | Type | Required | Meaning |
@@ -345,6 +454,7 @@ gitsmith reads `.commitconfig.json`, searching upward from the current folder. `
 | `headerMaxLength` | `number` | no | Warn when the header is longer than this |
 | `messageStyle` | `"conventional"` \| `"off"` | no | `"conventional"` (default): summary starts lowercase, no trailing period |
 | `ai` | `object` | no | AI settings, see below. Without it, the agent falls back to guided prompts |
+| `extends` | `string` \| `string[]` | no | Shared rules to build on, see [Sharing rules](#sharing-rules-with-extends) |
 
 ### Format tokens
 
@@ -400,20 +510,26 @@ src/
   index.js                 commands and routing (commander)
   commands/
     agent.js               default: diff -> AI -> validate -> approve -> commit
-    commit.js              guided prompts and no-prompt flags mode
+    commit.js              guided prompts and no-prompt flags mode (CLI output)
     check.js               validate a message (also used by the hook)
     rules.js               print the rules (Markdown or JSON)
     hook.js                install/uninstall the commit-msg hook
     agents.js              write rules into AGENTS.md and similar files
     init.js                create .commitconfig.json
     key.js                 API key commands
+  mcp/server.js            MCP server: get_rules, get_status, get_diff, check_message, commit
+  core/commit.js           validate-and-commit, shared by the CLI and the MCP server
   ai/
     nvidia.js              prompt building, API call, response checks
     credentials.js         key storage and lookup (env var first)
   agent/rules.js           rules as data and Markdown
   validate/message.js      the rule engine: parse, validate, build headers
-  config/                  defaults, loading and schema (zod)
-  git/executor.js          git calls: staged files, diff, commit, hooks dir
+  config/
+    resolve.js             extends: presets, files, URLs, packages; merge and sources
+    presets.js             built-in presets
+    loader.js              find, resolve, validate, apply ai defaults
+    schema.js, default.js  schema (zod) and init defaults
+  git/executor.js          git calls: status, diff, commit (incl. chosen paths), hooks dir
   prompt/builder.js        interactive prompts (enquirer)
   format/template.js       renders the format template
   ui/spinner.js            progress spinner (terminal only)
@@ -445,7 +561,29 @@ flowchart TD
   L -- Cancel --> N[stop, staged changes kept]
 ```
 
-One rule engine (`src/validate/message.js`) serves every path: the agent, the guided prompts, no-prompt mode, `check` and the hook. That's why they always agree about what is valid.
+One rule engine (`src/validate/message.js`) serves every path: the agent, the guided prompts, no-prompt mode, the MCP server, `check` and the hook. One resolver (`src/config/resolve.js`) produces the rules they all use. That's why every path agrees about what is valid.
+
+An AI coding agent connected over MCP:
+
+```mermaid
+sequenceDiagram
+  participant A as AI agent (Claude Code, Cursor…)
+  participant G as gitsmith mcp
+  participant R as git repo
+  A->>G: get_rules
+  G-->>A: types, scopes, format, style
+  A->>G: get_status / get_diff
+  G->>R: git status / git diff
+  G-->>A: files and changes
+  A->>G: commit {type, scope, message, files}
+  G->>G: validate against the rules
+  alt breaks a rule
+    G-->>A: error: what to fix
+    A->>G: commit (corrected)
+  end
+  G->>R: git commit -- files
+  G-->>A: ok, hash
+```
 
 ## Development
 
@@ -482,8 +620,8 @@ npm publish
 
 ## Roadmap
 
-- **Done:** agent by default; no-prompt mode; `check`, `rules`, `hook` and `agents`; strict scopes; message style; co-author and author flags; staged-diff context
-- **Next:** an MCP server so agents can call gitsmith as a tool; `gitsmith push` to check unpushed commits before pushing; commit bodies written by the agent; splitting a large change into several commits
+- **Done:** agent by default; MCP server for AI agents; splitting a change into several commits; shareable rules with `extends`, presets, URLs and packages; no-prompt mode; `check`, `rules`, `hook` and `agents`; strict scopes; message style; co-author and author flags
+- **Next:** `gitsmith push` to check unpushed commits before pushing; the NVIDIA agent proposing a split into several commits on its own; commit bodies written by the agent; a `gitsmith check --range` for CI
 
 Ideas and pull requests are welcome.
 
