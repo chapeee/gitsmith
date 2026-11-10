@@ -95,6 +95,22 @@ Requires Node.js 20 or newer. Check it works:
 gitsmith --help
 ```
 
+### Latest version from GitHub
+
+To get the newest code from `master` before it's released on npm, install the GitHub tarball:
+
+```bash
+npm install -g https://github.com/chapeee/gitsmith/tarball/master
+```
+
+Use the tarball URL rather than `github:chapeee/gitsmith`. On Windows, npm 11 can turn a `github:` global install into a link to a temporary clone that it then deletes, which leaves `gitsmith` broken. If that already happened, run `npm uninstall -g gitsmith` and install the tarball.
+
+Until the next npm release, register the MCP server with your installed `gitsmith` instead of `npx` (which fetches the npm release):
+
+```bash
+claude mcp add gitsmith --scope user -- gitsmith mcp
+```
+
 ## Quick start
 
 ```bash
@@ -210,6 +226,8 @@ Options for committing:
 | `gitsmith mcp` | Run the MCP server over stdio (started by MCP clients, not by hand) |
 | `gitsmith agents [--file <paths...>]` | Write the rules into agent instruction files (default `AGENTS.md`) |
 | `gitsmith agents --mcp` | Also register the gitsmith MCP server in the project's `.mcp.json` |
+| `gitsmith agents --force` | Replace a gitsmith section (or `.mcp.json` entry) you edited by hand |
+| `gitsmith agents --print` | Print the gitsmith section instead of writing it |
 
 ### Setup and keys
 
@@ -275,7 +293,15 @@ gitsmith agents --file AGENTS.md CLAUDE.md .cursorrules
 gitsmith rules --json                            # the rules as JSON
 ```
 
-`gitsmith agents` keeps its section between `<!-- gitsmith:start -->` and `<!-- gitsmith:end -->`. Re-running it updates that section and leaves the rest of the file alone.
+Your own instructions in `AGENTS.md` are safe. gitsmith only ever touches the text between `<!-- gitsmith:start -->` and `<!-- gitsmith:end -->`:
+
+- **No markers yet:** the section is appended at the end. Your existing text is not changed, not even trailing spaces or line endings.
+- **Markers found:** only the text between them is updated. Running it again when nothing changed doesn't rewrite the file, and never creates a second section.
+- **You edited inside the section:** gitsmith notices (the start marker stores a fingerprint of what it wrote), keeps your version and tells you. `gitsmith agents --force` replaces it with the current rules; `gitsmith agents --print` shows them so you can merge by hand.
+- **Markers in your text or examples:** markers count only as whole lines outside code blocks, so a file that merely mentions them is never cut open.
+- **Broken markers** (one of the pair missing, wrong order, two sections): gitsmith explains what's wrong and leaves the file alone.
+
+The best place for your own notes is outside the markers. With `--mcp`, other servers in `.mcp.json` are kept, and so is a gitsmith entry you customized, unless you pass `--force`.
 
 `gitsmith rules --json` returns:
 
@@ -612,11 +638,11 @@ gitsmith            # or: gitsmith -t <type> -s <scope> -m "<message>"
 ### Publishing
 
 ```bash
-npm run lint
-npm test
 npm version <patch|minor|major>
 npm publish
 ```
+
+`npm publish` runs lint and the full test suite first (`prepublishOnly`) and stops if either fails. Nothing runs when people install gitsmith, so there are no install scripts to approve.
 
 ## Roadmap
 

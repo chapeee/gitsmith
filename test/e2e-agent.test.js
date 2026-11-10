@@ -130,7 +130,7 @@ test("e2e: agent workflow with the real CLI", { skip: !hasGit && "git not instal
     gitsmith(dir, "agents");
     gitsmith(dir, "agents");
     const content = readFileSync(path.join(dir, "AGENTS.md"), "utf8");
-    assert.equal(content.split("<!-- gitsmith:start -->").length, 2);
+    assert.equal((content.match(/^<!-- gitsmith:start hash=[a-f0-9]{12} -->$/gm) ?? []).length, 1);
     assert.match(content, /gitsmith -t feat -s/);
   });
 });

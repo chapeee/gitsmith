@@ -1,4 +1,5 @@
-<!-- gitsmith:start -->
+<!-- gitsmith:start hash=5f9e3b4a137b -->
+<!-- Managed by gitsmith (`gitsmith agents`). Keep your own notes outside these markers. If you edit inside, gitsmith keeps your version and stops updating this section until you run `gitsmith agents --force`. -->
 ## Commit messages
 
 This repo uses [gitsmith](https://www.npmjs.com/package/gitsmith). Every commit header must follow:

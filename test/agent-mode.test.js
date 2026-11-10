@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { describeRules, renderRulesMarkdown } from "../src/agent/rules.js";
-import { SECTION_END, SECTION_START, upsertSection } from "../src/commands/agents.js";
 import { hasCommitFlags } from "../src/commands/commit.js";
 import { HOOK_MARKER, HOOK_SCRIPT } from "../src/commands/hook.js";
 
@@ -34,19 +33,6 @@ test("renderRulesMarkdown lists types, scopes and the command", () => {
   assert.match(markdown, /`feat`, `fix`/);
   assert.match(markdown, /`api`/);
   assert.match(markdown, /gitsmith -t feat -s api/);
-});
-
-test("upsertSection creates, appends and replaces without touching other content", () => {
-  assert.equal(upsertSection(null, "A"), `${SECTION_START}\nA\n${SECTION_END}\n`);
-
-  const appended = upsertSection("# Title\n", "A");
-  assert.equal(appended, `# Title\n\n${SECTION_START}\nA\n${SECTION_END}\n`);
-
-  const replaced = upsertSection(`${appended}\nfooter\n`, "B");
-  assert.match(replaced, /# Title/);
-  assert.match(replaced, /footer/);
-  assert.match(replaced, /\nB\n/);
-  assert.doesNotMatch(replaced, /\nA\n/);
 });
 
 test("hook script is marked and calls gitsmith check with the message file", () => {
