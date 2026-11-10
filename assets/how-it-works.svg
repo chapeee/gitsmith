@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 820" width="1000" height="820" role="img" aria-labelledby="t d">
+  <title id="t">Claude Code committing through gitsmith</title>
+  <desc id="d">A Claude Code session: asked to commit, the agent calls the gitsmith MCP tools get_rules, get_status and commit. One commit is rejected for breaking the message style, the agent fixes it, and both commits land following the project's rules.</desc>
+  <defs>
+    <style>
+      .s { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Helvetica, Arial, sans-serif; }
+      .m { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; }
+      .body { font-size: 17px; fill: #ebe9e3; }
+      .row { font-size: 16px; fill: #9e9b93; }
+      .rowb { font-size: 16px; fill: #c9c6be; }
+      .small { font-size: 14px; fill: #8f8c84; }
+      .code { font-size: 14px; fill: #e6c07b; }
+      .ok { fill: #8fcf8f; }
+      .err { fill: #f08a7e; }
+    </style>
+    <g id="check">
+      <circle r="9" fill="#8f8c84"/>
+      <path d="M -4 0 L -1 3 L 4.5 -3" fill="none" stroke="#262624" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </defs>
+
+  <rect width="1000" height="820" rx="18" fill="#262624"/>
+
+  <!-- User message -->
+  <rect x="452" y="30" width="508" height="52" rx="16" fill="#3a3936"/>
+  <text class="s body" x="476" y="62">Commit my changes. Split unrelated work.</text>
+
+  <!-- get_rules -->
+  <text class="s row" x="40" y="128">Called <tspan class="rowb">gitsmith</tspan> · get_rules  ›</text>
+  <text class="s body" x="40" y="164">Rules: types <tspan class="m code">feat fix docs chore refactor test style</tspan>, scopes</text>
+  <text class="s body" x="40" y="190"><tspan class="m code">auth ui api db config</tspan> (strict), lowercase summary, no trailing period.</text>
+
+  <!-- get_status -->
+  <text class="s row" x="40" y="236">Called <tspan class="rowb">gitsmith</tspan> · get_status  ›</text>
+  <text class="s body" x="40" y="272">Two unrelated changes: <tspan class="m code">src/api/retry.js</tspan> and <tspan class="m code">src/ui/banner.js</tspan>.</text>
+  <text class="s body" x="40" y="298">I'll commit them separately.</text>
+
+  <!-- commit 1 -->
+  <text class="s row" x="40" y="344">Called <tspan class="rowb">gitsmith</tspan> · commit  ›</text>
+  <rect x="40" y="358" width="540" height="44" rx="10" fill="#2e2d2a" stroke="#3d3c38"/>
+  <text class="m" x="58" y="386" font-size="15"><tspan class="ok">✓</tspan><tspan fill="#ebe9e3" dx="10">feat(api): add retry logic</tspan><tspan class="small" dx="14">1a2b3c4</tspan></text>
+
+  <!-- commit 2 rejected -->
+  <text class="s row" x="40" y="446">Called <tspan class="rowb">gitsmith</tspan> · commit  ›</text>
+  <rect x="40" y="460" width="760" height="70" rx="10" fill="#33201d" stroke="#5c2c26"/>
+  <text class="m" x="58" y="487" font-size="15"><tspan class="err">✗</tspan><tspan fill="#ebe9e3" dx="10">feat(ui): Add banner.</tspan><tspan class="err" dx="14">rejected, nothing committed</tspan></text>
+  <text class="s" x="84" y="514" font-size="14" fill="#e3a59c">message must start with a lowercase letter · must not end with a period</text>
+
+  <text class="s body" x="40" y="566">gitsmith flagged the message style. Fixing it and retrying.</text>
+
+  <!-- commit 3 -->
+  <text class="s row" x="40" y="610">Called <tspan class="rowb">gitsmith</tspan> · commit  ›</text>
+  <rect x="40" y="624" width="540" height="44" rx="10" fill="#2e2d2a" stroke="#3d3c38"/>
+  <text class="m" x="58" y="652" font-size="15"><tspan class="ok">✓</tspan><tspan fill="#ebe9e3" dx="10">feat(ui): add banner</tspan><tspan class="small" dx="14">5d6e7f8</tspan></text>
+
+  <!-- Task card -->
+  <rect x="620" y="580" width="340" height="168" rx="12" fill="#2a2927" stroke="#3a3936"/>
+  <text class="s small" x="642" y="608">Plan</text>
+  <use href="#check" x="652" y="632"/>
+  <text class="s" x="672" y="637" font-size="15" fill="#a7a49c">Read the commit rules</text>
+  <use href="#check" x="652" y="660"/>
+  <text class="s" x="672" y="665" font-size="15" fill="#a7a49c">Check what changed</text>
+  <use href="#check" x="652" y="688"/>
+  <text class="s" x="672" y="693" font-size="15" fill="#a7a49c">Commit the API change</text>
+  <use href="#check" x="652" y="716"/>
+  <text class="s" x="672" y="721" font-size="15" fill="#a7a49c">Commit the UI change (after fix)</text>
+
+  <!-- Final -->
+  <text class="s body" x="40" y="712">Done: 2 commits, both follow <tspan class="m code">.commitconfig.json</tspan>.</text>
+  <text class="s" x="40" y="784" font-size="22" fill="#d97757">✻</text>
+  <text class="s small" x="68" y="782">The agent writes the messages · gitsmith enforces your rules</text>
+</svg>

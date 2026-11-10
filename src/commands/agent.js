@@ -148,6 +148,19 @@ export async function runAgentCommand(options = {}) {
   await ensureInsideGitRepo();
   const { config } = await loadValidatedConfig();
 
+  let apiKey = null;
+  try {
+    apiKey = await resolveApiKeyWithoutPrompt();
+  } catch (error) {
+    if (!(error instanceof CredentialsReadError)) throw error;
+  }
+
+  // Without a terminal there is no fallback, so stop before touching the index.
+  const unavailable = aiUnavailableReason(config, apiKey);
+  if (unavailable && !interactive) {
+    throw new Error(`${unavailable}\nWithout AI, pass the commit parts as flags: gitsmith -t <type> -m "<message>"`);
+  }
+
   let staged;
   try {
     staged = await ensureSomethingStaged(options, interactive && !autoApprove);
@@ -160,18 +173,7 @@ export async function runAgentCommand(options = {}) {
     throw error;
   }
 
-  let apiKey = null;
-  try {
-    apiKey = await resolveApiKeyWithoutPrompt();
-  } catch (error) {
-    if (!(error instanceof CredentialsReadError)) throw error;
-  }
-
-  const unavailable = aiUnavailableReason(config, apiKey);
   if (unavailable) {
-    if (!interactive) {
-      throw new Error(`${unavailable}\nWithout AI, pass the commit parts as flags: gitsmith -t <type> -m "<message>"`);
-    }
     console.log(pc.yellow(`${unavailable} Switching to the guided prompts.`));
     await runCommitCommand({ aiMode: "off", coAuthor: options.coAuthor, author: options.author });
     return;
