@@ -76,10 +76,10 @@ export async function collectCommitData(config, options = {}) {
         type: "select",
         name: "scope",
         message: "Select scope",
-        choices: [
-          ...config.scopes,
-          { name: CUSTOM_SCOPE_CHOICE, message: "Other (type custom scope)" }
-        ],
+        // With strictScopes only listed scopes pass the hook, so hide "Other".
+        choices: config.strictScopes
+          ? [...config.scopes]
+          : [...config.scopes, { name: CUSTOM_SCOPE_CHOICE, message: "Other (type custom scope)" }],
         initial: initial.scope ? initialSelectValue : undefined
       });
 

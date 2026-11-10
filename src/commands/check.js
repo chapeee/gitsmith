@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import pc from "picocolors";
-import { loadValidatedConfig } from "../config/loader.js";
+import { CONFIG_FILE_NAME } from "../config/default.js";
+import { findConfigPath, loadValidatedConfig } from "../config/loader.js";
 import { checkCommitMessage, exampleHeader } from "../validate/message.js";
 
 async function readStdin() {
@@ -28,6 +29,12 @@ export async function runCheckCommand(messageArg, options = {}) {
     raw = messageArg;
   } else {
     throw new Error('Pass a message, --file <path> or --stdin. Example: gitsmith check "feat(api): add retry"');
+  }
+
+  // From the hook (--file), a repo without a config must not block every commit.
+  if (options.file && !(await findConfigPath())) {
+    console.error(pc.yellow(`gitsmith: no ${CONFIG_FILE_NAME} found; skipping commit message check.`));
+    return;
   }
 
   const { config } = await loadValidatedConfig();

@@ -37,3 +37,17 @@ test("withAiDefaults fills ai defaults for partial enabled block", () => {
   assert.equal(result.ai.askByDefault, true);
   assert.equal(result.ai.allowNewScopes, true);
 });
+
+test("withAiDefaults turns off new AI scopes when strictScopes is true", () => {
+  const result = withAiDefaults({
+    types: ["feat"],
+    askScope: true,
+    scopes: ["api"],
+    strictScopes: true,
+    askTicket: false,
+    askBreaking: false,
+    format: "{type}({scope}): {message}",
+    ai: { enabled: true, allowNewScopes: true }
+  });
+  assert.equal(result.ai.allowNewScopes, false);
+});

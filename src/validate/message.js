@@ -117,15 +117,15 @@ export function validateParts(parts, config) {
 
   if (config.askScope && scope) {
     const scopes = Array.isArray(config.scopes) ? config.scopes : [];
-    if (scopes.length > 0 && !scopes.includes(scope)) {
+    if (/[\s()]/.test(scope)) {
+      errors.push(`scope "${scope}" cannot contain spaces or brackets.`);
+    } else if (scopes.length > 0 && !scopes.includes(scope)) {
       const text = `scope "${scope}" is not in the list. Allowed: ${scopes.join(", ")}`;
       if (config.strictScopes) {
         errors.push(text);
       } else {
         warnings.push(text);
       }
-    } else if (/\s/.test(scope)) {
-      errors.push(`scope "${scope}" cannot contain spaces.`);
     }
   }
 

@@ -108,3 +108,9 @@ test("buildAndValidate prepends ticketPrefix and rejects unused ticket", () => {
   );
   assert.equal(buildAndValidate({ type: "feat", scope: "api", ticket: "12", message: "add x" }, config).ok, false);
 });
+
+test("scope with spaces is an error even when not in the list", () => {
+  const result = buildAndValidate({ type: "feat", scope: "my scope", message: "add x" }, config);
+  assert.equal(result.ok, false);
+  assert.match(result.errors[0], /cannot contain spaces/);
+});

@@ -210,7 +210,10 @@ async function runFlagsCommit(options) {
 
   let files;
   try {
-    await ensureStagedFiles();
+    // A dry run only previews the header, so it works before anything is staged.
+    if (!options.dryRun) {
+      await ensureStagedFiles();
+    }
     files = await getStagedFiles();
   } catch (error) {
     fail([error instanceof Error ? error.message : String(error)], { header: result.header });
