@@ -135,6 +135,8 @@ export function runCli() {
     .description("Set up AI agents: write the commit rules into AGENTS.md, and with --mcp register the gitsmith MCP server")
     .option("--file <path...>", "Target file(s), e.g. AGENTS.md CLAUDE.md .cursorrules")
     .option("--mcp", "Also add gitsmith to the project's .mcp.json (Claude Code, Cursor and other MCP clients)")
+    .option("-f, --force", "Replace a gitsmith section (or .mcp.json entry) that was edited by hand")
+    .option("--print", "Print the gitsmith section instead of writing it, to merge by hand")
     .action(async (options) => {
       await runAgentsCommand(options);
     });
