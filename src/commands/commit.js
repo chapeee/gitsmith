@@ -7,13 +7,21 @@ import {
 } from "../ai/nvidia.js";
 import { loadValidatedConfig } from "../config/loader.js";
 import { askConfirm, askText, collectCommitData } from "../prompt/builder.js";
-import { createCommit, ensureInsideGitRepo, ensureStagedFiles, getStagedFiles } from "../git/executor.js";
+import {
+  buildCommitBody,
+  createCommit,
+  ensureInsideGitRepo,
+  ensureStagedFiles,
+  getStagedFiles,
+  isValidPerson
+} from "../git/executor.js";
 import { buildAndValidate, exampleHeader } from "../validate/message.js";
 import { describeRules } from "../agent/rules.js";
 import { CredentialsReadError } from "../ai/credentials.js";
 import { resolveApiKeyWithoutPrompt } from "./key.js";
+import { withSpinner } from "../ui/spinner.js";
 
-function mapAiErrorToMessage(error) {
+export function mapAiErrorToMessage(error) {
   if (error instanceof CredentialsReadError) {
     return "Could not read ~/.gitsmith/credentials.json. Falling back to manual.";
   }
@@ -75,25 +83,15 @@ async function tryAiFlow(config, commandOptions) {
   }
 
   let suggestion;
-  const frames = ["|", "/", "-", "\\"];
-  let frameIndex = 0;
-  process.stdout.write("Generating AI suggestion ");
-  const spinnerId = setInterval(() => {
-    process.stdout.write(`\rGenerating AI suggestion ${frames[frameIndex % frames.length]}`);
-    frameIndex += 1;
-  }, 90);
   try {
-    suggestion = await suggestCommit({ description, config, apiKey: resolvedKey });
+    suggestion = await withSpinner("Generating AI suggestion", () =>
+      suggestCommit({ description, config, apiKey: resolvedKey })
+    );
   } catch (error) {
-    clearInterval(spinnerId);
-    process.stdout.write("\r");
-    console.log(" ");
     console.log(mapAiErrorToMessage(error));
     return { mode: "manual", initialValues: { message: description } };
   }
-  clearInterval(spinnerId);
-  process.stdout.write("\r");
-  console.log("AI suggestion ready.           ");
+  console.log("AI suggestion ready.");
 
   if (suggestion.scopeIsNew === true) {
     const acceptNewScope = await askConfirm(`New scope suggested: ${suggestion.scope}. Use it? (Y/n)`, true);
@@ -168,8 +166,26 @@ export function hasCommitFlags(options = {}) {
   return COMMIT_FLAG_KEYS.some((key) => options[key] !== undefined && options[key] !== false);
 }
 
-function isInteractiveTerminal() {
+export function isInteractiveTerminal() {
   return Boolean(process.stdin.isTTY);
+}
+
+/**
+ * Checks --author and --co-author values have git's "Name <email>" shape.
+ * @param {{author?: string, coAuthor?: string[]}} options
+ * @returns {string[]}
+ */
+export function validatePeople(options = {}) {
+  const errors = [];
+  if (options.author !== undefined && !isValidPerson(options.author)) {
+    errors.push(`--author must look like "Name <email@example.com>", got "${options.author}".`);
+  }
+  for (const person of options.coAuthor ?? []) {
+    if (!isValidPerson(person)) {
+      errors.push(`--co-author must look like "Name <email@example.com>", got "${person}".`);
+    }
+  }
+  return errors;
 }
 
 function printJson(value) {
@@ -182,7 +198,7 @@ function printJson(value) {
  * Exits with code 1 when validation or git fails, so agents can retry.
  * @param {object} options
  */
-async function runFlagsCommit(options) {
+export async function runFlagsCommit(options) {
   const json = Boolean(options.json);
   const log = (text) => {
     if (!json) console.log(text);
@@ -214,7 +230,9 @@ async function runFlagsCommit(options) {
   }
 
   const result = buildAndValidate(options, config);
-  if (!result.ok) {
+  result.errors.push(...validatePeople(options));
+  const body = buildCommitBody(options.body, options.coAuthor);
+  if (result.errors.length > 0) {
     fail(result.errors, {
       header: result.header,
       example: exampleHeader(config),
@@ -241,7 +259,7 @@ async function runFlagsCommit(options) {
 
   if (options.dryRun) {
     if (json) {
-      printJson({ ok: true, dryRun: true, header: result.header, body: options.body ?? "", files, warnings: result.warnings });
+      printJson({ ok: true, dryRun: true, header: result.header, body, author: options.author ?? null, files, warnings: result.warnings });
     } else {
       log(`${pc.cyan("Dry run, nothing committed:")} ${pc.bold(result.header)}`);
     }
@@ -250,7 +268,11 @@ async function runFlagsCommit(options) {
 
   let commit;
   try {
-    commit = await createCommit(result.header, { body: options.body });
+    commit = await createCommit(result.header, {
+      body: options.body,
+      coAuthors: options.coAuthor,
+      author: options.author
+    });
   } catch (error) {
     // Hooks or git itself rejected the commit; surface git's own output.
     const e = /** @type {{stderr?: string, stdout?: string, message?: string}} */ (error);
@@ -260,7 +282,7 @@ async function runFlagsCommit(options) {
   }
 
   if (json) {
-    printJson({ ok: true, hash: commit.hash, header: result.header, body: options.body ?? "", files, warnings: result.warnings });
+    printJson({ ok: true, hash: commit.hash, header: result.header, body, author: options.author ?? null, files, warnings: result.warnings });
   } else {
     const hashText = commit.hash ? ` ${pc.cyan(commit.hash)}` : "";
     log(pc.green(`Committed:${hashText} ${result.header}`));
@@ -274,6 +296,11 @@ async function runFlagsCommit(options) {
 export async function runCommitCommand(commandOptions = {}) {
   if (hasCommitFlags(commandOptions) || commandOptions.json || commandOptions.dryRun) {
     return runFlagsCommit(commandOptions);
+  }
+
+  const peopleErrors = validatePeople(commandOptions);
+  if (peopleErrors.length > 0) {
+    throw new Error(peopleErrors.join("\n"));
   }
 
   if (!isInteractiveTerminal()) {
@@ -303,7 +330,10 @@ export async function runCommitCommand(commandOptions = {}) {
         : await collectCommitData(config, { initialValues: aiResult?.initialValues ?? {} });
 
     console.log(pc.cyan("Creating commit..."));
-    const result = await createCommit(commitMessage);
+    const result = await createCommit(commitMessage, {
+      coAuthors: commandOptions.coAuthor,
+      author: commandOptions.author
+    });
     console.log(pc.green("Commit created."));
 
     // Include hash when git output exposes it (depends on git message format).

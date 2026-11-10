@@ -2,7 +2,8 @@
 // inside a throwaway git repo, so the agent-facing behaviour is tested as shipped.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import http from "node:http";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, chmodSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -50,11 +51,11 @@ test("e2e: agent workflow with the real CLI", { skip: !hasGit && "git not instal
   const dir = createRepo();
   t.after(() => rmSync(dir, { recursive: true, force: true }));
 
-  await t.test("no flags and no terminal exits 1 instead of hanging or faking success", () => {
+  await t.test("agent with no terminal and no --yes exits 1 instead of hanging or faking success", () => {
     stage(dir, "a.txt");
     const result = gitsmith(dir);
     assert.equal(result.code, 1);
-    assert.match(result.stderr, /needs an interactive terminal/);
+    assert.match(result.stderr, /needs a terminal to ask for approval/);
     assert.equal(commitCount(dir), 0);
   });
 
@@ -131,5 +132,95 @@ test("e2e: agent workflow with the real CLI", { skip: !hasGit && "git not instal
     const content = readFileSync(path.join(dir, "AGENTS.md"), "utf8");
     assert.equal(content.split("<!-- gitsmith:start -->").length, 2);
     assert.match(content, /gitsmith -t feat -s/);
+  });
+});
+
+// Runs the CLI without blocking the event loop, so an in-process fake AI server can answer.
+function runAsync(cwd, args, env) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [CLI, ...args], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, NO_COLOR: "1", ...env }
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    child.on("close", (code) => resolve({ code, stdout, stderr }));
+  });
+}
+
+function startFakeAi(reply) {
+  const requests = [];
+  const server = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      requests.push({ auth: req.headers.authorization, body: JSON.parse(raw) });
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(reply()) } }] }));
+    });
+  });
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve({ server, requests, url: `http://127.0.0.1:${server.address().port}/v1/chat/completions` }));
+  });
+}
+
+test("e2e: plain `gitsmith` is the agent", { skip: !hasGit && "git not installed" }, async (t) => {
+  const replies = [
+    // First reply breaks the style rules; the agent must retry with feedback.
+    { type: "feat", scope: "api", scopeIsNew: false, message: "Add greeting.", isBreaking: false, ticket: null, reason: "new file" },
+    { type: "feat", scope: "api", scopeIsNew: false, message: "add greeting module", isBreaking: false, ticket: null, reason: "new file" }
+  ];
+  const ai = await startFakeAi(() => (replies.length > 1 ? replies.shift() : replies[0]));
+  const dir = createRepo();
+  t.after(() => {
+    ai.server.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const configPath = path.join(dir, ".commitconfig.json");
+  const config = JSON.parse(readFileSync(configPath, "utf8"));
+  config.ai = { enabled: true, endpoint: ai.url };
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeFileSync(path.join(dir, "greeting.js"), "export const greet = () => 'hi';\n");
+
+  await t.test("without an API key it explains instead of committing", async () => {
+    const result = await runAsync(dir, ["--yes", "--all"], { GITSMITH_AI_KEY: "" , HOME: dir, USERPROFILE: dir });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /No NVIDIA API key/);
+    assert.equal(commitCount(dir), 0);
+  });
+
+  await t.test("--yes --all stages, reads the diff, fixes rule breaks and commits", async () => {
+    const result = await runAsync(dir, ["--yes", "--all", "--co-author", "Claude <noreply@anthropic.com>"], { GITSMITH_AI_KEY: "test-key" });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(lastSubject(dir), "feat(api): add greeting module");
+
+    // Two calls: the rule-breaking reply, then the corrected retry.
+    assert.equal(ai.requests.length, 2);
+    assert.equal(ai.requests[0].auth, "Bearer test-key");
+    const firstPrompt = ai.requests[0].body.messages[1].content;
+    assert.match(firstPrompt, /greeting\.js/);
+    assert.match(firstPrompt, /export const greet/);
+    assert.match(ai.requests[1].body.messages[1].content, /broke these rules/);
+
+    const trailer = git(dir, "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly)").stdout.trim();
+    assert.equal(trailer, "Claude <noreply@anthropic.com>");
+  });
+
+  await t.test("--author makes someone else the author while you stay committer", async () => {
+    writeFileSync(path.join(dir, "more.js"), "export const more = 1;\n");
+    const result = await runAsync(dir, ["--yes", "--all", "--author", "Claude <noreply@anthropic.com>"], { GITSMITH_AI_KEY: "test-key" });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(git(dir, "log", "-1", "--format=%an <%ae>").stdout.trim(), "Claude <noreply@anthropic.com>");
+    assert.equal(git(dir, "log", "-1", "--format=%cn").stdout.trim(), "agent");
+  });
+
+  await t.test("a clean tree is reported, not committed", async () => {
+    const result = await runAsync(dir, ["--yes"], { GITSMITH_AI_KEY: "test-key" });
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /working tree is clean/);
   });
 });

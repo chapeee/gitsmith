@@ -8,7 +8,9 @@ const aiDefaults = {
   model: "nvidia/llama-3.3-nemotron-super-49b-v1",
   endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
   askByDefault: true,
-  allowNewScopes: true
+  allowNewScopes: true,
+  // The agent reads the staged diff; set false to send only a typed description.
+  sendDiff: true
 };
 
 /**
