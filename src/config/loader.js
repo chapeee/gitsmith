@@ -29,14 +29,18 @@ export function withAiDefaults(config) {
     return config;
   }
 
-  return {
-    ...config,
-    ai: {
-      ...aiDefaults,
-      ...config.ai,
-      enabled: true
-    }
+  const ai = {
+    ...aiDefaults,
+    ...config.ai,
+    enabled: true
   };
+
+  // strictScopes means only listed scopes are valid, so AI must not invent new ones.
+  if (config.strictScopes) {
+    ai.allowNewScopes = false;
+  }
+
+  return { ...config, ai };
 }
 
 /**

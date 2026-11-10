@@ -29,12 +29,36 @@ export async function ensureStagedFiles() {
 }
 
 /**
- * Creates a git commit with the provided header message.
+ * Lists staged file paths.
+ * @returns {Promise<string[]>}
+ */
+export async function getStagedFiles() {
+  const { stdout } = await execa("git", ["diff", "--cached", "--name-only"]);
+  return stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+/**
+ * Resolves the hooks directory, honouring core.hooksPath and worktrees.
+ * @returns {Promise<string>}
+ */
+export async function getHooksDir() {
+  const { stdout } = await execa("git", ["rev-parse", "--git-path", "hooks"]);
+  return stdout.trim();
+}
+
+/**
+ * Creates a git commit with the provided header and optional body.
  * @param {string} message
+ * @param {{body?: string}} [options]
  * @returns {Promise<{output: string, hash: string | null}>}
  */
-export async function createCommit(message) {
-  const { stdout } = await execa("git", ["commit", "-m", message]);
+export async function createCommit(message, options = {}) {
+  const args = ["commit", "-m", message];
+  const body = String(options.body ?? "").trim();
+  if (body) {
+    args.push("-m", body);
+  }
+  const { stdout } = await execa("git", args);
   const hashMatch = stdout.match(/\[[^\]]+\s([a-f0-9]{7,40})\]/i);
   return {
     output: stdout,

@@ -100,6 +100,64 @@ gitsmith
 - `gitsmith key:remove`: Remove saved key
 - `gitsmith key:reset`: Alias for `key:remove`
 - `gitsmith key:status`: Show saved key status
+- `gitsmith -t <type> -s <scope> -m "<message>"`: Commit without prompts (see [Scripts and AI agents](#scripts-and-ai-agents))
+- `gitsmith check "<message>"`: Check a message against the config without committing
+- `gitsmith rules [--json]`: Print the commit rules
+- `gitsmith hook install` / `gitsmith hook uninstall`: Manage the `commit-msg` hook
+- `gitsmith agents [--file <path...>]`: Write the commit rules into `AGENTS.md` and similar files
+
+## Scripts and AI agents
+
+AI coding agents (Claude Code, Cursor, Copilot and others) and CI scripts can't answer prompts. gitsmith gives them a way to commit in your format, and blocks commits that break it.
+
+### Commit without prompts
+
+Passing any commit part as a flag switches gitsmith to no-prompt mode:
+
+```bash
+gitsmith -t feat -s api -m "add retry logic"
+gitsmith -t fix -s ui -m "handle empty input" --body "Longer explanation." --breaking
+gitsmith -t feat -s api -m "add retry logic" --dry-run --json
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `-t, --type` | commit type (must be in `types`) |
+| `-s, --scope` | scope (required when `scopes` is set) |
+| `-m, --message` | summary |
+| `--ticket` | ticket id; `ticketPrefix` is added if missing |
+| `-b, --breaking` | adds the `!` marker |
+| `--body` | commit body |
+| `--dry-run` | validate and show the header, commit nothing |
+| `--json` | machine-readable result: `{ ok, hash, header, body, files, warnings }` or `{ ok: false, errors }` |
+
+Invalid input exits with code 1 and says what to fix, for example `type "feet" is not allowed. Allowed: feat, fix, ...`. If gitsmith is run without flags and without a terminal, it exits with a hint instead of waiting for input.
+
+### Enforce the format for every commit
+
+```bash
+gitsmith hook install
+```
+
+This installs a `commit-msg` hook that runs `gitsmith check` on every commit, including plain `git commit` from people, IDEs and agents. Rejected messages list what is wrong and show an example. Merge, revert and `fixup!` messages are skipped. The hook respects `core.hooksPath`, and it won't overwrite an existing hook unless you pass `--force`.
+
+### Tell agents the rules
+
+```bash
+gitsmith agents                       # writes AGENTS.md
+gitsmith agents --file AGENTS.md CLAUDE.md .cursorrules
+gitsmith rules --json                 # rules as JSON, for tools
+```
+
+`gitsmith agents` keeps its section between `<!-- gitsmith:start -->` and `<!-- gitsmith:end -->` markers, so re-running it updates the rules and leaves the rest of the file alone.
+
+### Check a message
+
+```bash
+gitsmith check "feat(api): add retry logic"
+git log -1 --format=%B | gitsmith check --stdin
+gitsmith check --file .git/COMMIT_EDITMSG --json
+```
 
 ## Config Schema
 
@@ -113,6 +171,7 @@ gitsmith
 - `askBreaking: boolean` (required)
 - `format: string` (required)
 - `headerMaxLength?: number`
+- `strictScopes?: boolean`: when `true`, `check`, the hook and no-prompt mode reject scopes that aren't in `scopes` (by default they only warn)
 
 Available format tokens:
 

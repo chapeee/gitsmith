@@ -25,6 +25,7 @@ const baseSchema = z
     askBreaking: z.boolean(),
     format: z.string().min(1, "format is required"),
     headerMaxLength: z.number().int().positive().optional(),
+    strictScopes: z.boolean().optional(),
     ai: aiSchema
   })
   .superRefine((config, ctx) => {

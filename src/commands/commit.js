@@ -6,9 +6,10 @@ import {
   suggestCommit
 } from "../ai/nvidia.js";
 import { loadValidatedConfig } from "../config/loader.js";
-import { buildCommitMessage } from "../format/template.js";
 import { askConfirm, askText, collectCommitData } from "../prompt/builder.js";
-import { createCommit, ensureInsideGitRepo, ensureStagedFiles } from "../git/executor.js";
+import { createCommit, ensureInsideGitRepo, ensureStagedFiles, getStagedFiles } from "../git/executor.js";
+import { buildAndValidate, exampleHeader } from "../validate/message.js";
+import { describeRules } from "../agent/rules.js";
 import { CredentialsReadError } from "../ai/credentials.js";
 import { resolveApiKeyWithoutPrompt } from "./key.js";
 
@@ -110,15 +111,21 @@ async function tryAiFlow(config, commandOptions) {
     }
   }
 
-  const commitMessage = buildCommitMessage(config.format, {
-    type: suggestion.type,
-    scope: suggestion.scope ?? "",
-    ticket: suggestion.ticket ?? "",
-    message: suggestion.message,
-    breaking: suggestion.isBreaking
-  });
+  const { header: commitMessage, warnings } = buildAndValidate(
+    {
+      type: suggestion.type,
+      scope: suggestion.scope ?? "",
+      ticket: suggestion.ticket ?? "",
+      message: suggestion.message,
+      breaking: suggestion.isBreaking
+    },
+    config
+  );
 
   console.log(`\n${pc.cyan("AI Preview:")} ${pc.bold(commitMessage)}\n`);
+  for (const warning of warnings) {
+    console.log(pc.yellow(`Warning: ${warning}`));
+  }
   const confirmed = await askConfirm("Use this commit message? (Y/n)", true);
   if (confirmed) {
     return { mode: "ai", commitMessage };
@@ -136,11 +143,135 @@ async function tryAiFlow(config, commandOptions) {
   };
 }
 
+const COMMIT_FLAG_KEYS = ["type", "scope", "ticket", "message", "breaking", "body"];
+
+/**
+ * True when any commit part was passed as a flag, which switches to the no-prompt flow.
+ * @param {object} options
+ */
+export function hasCommitFlags(options = {}) {
+  return COMMIT_FLAG_KEYS.some((key) => options[key] !== undefined && options[key] !== false);
+}
+
+function isInteractiveTerminal() {
+  return Boolean(process.stdin.isTTY);
+}
+
+function printJson(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+/**
+ * Commit without prompts: every part comes from flags, is validated against the
+ * config, and the outcome is reported as text or as JSON (--json).
+ * Exits with code 1 when validation or git fails, so agents can retry.
+ * @param {object} options
+ */
+async function runFlagsCommit(options) {
+  const json = Boolean(options.json);
+  const log = (text) => {
+    if (!json) console.log(text);
+  };
+
+  const fail = (errors, extra = {}) => {
+    if (json) {
+      printJson({ ok: false, errors, ...extra });
+    } else {
+      for (const error of errors) {
+        console.error(pc.red(`Error: ${error}`));
+      }
+      if (extra.usage) {
+        console.error(pc.cyan(`Usage: ${extra.usage}`));
+        console.error(pc.cyan(`Example header: ${extra.example}`));
+        console.error(pc.cyan('Run "gitsmith rules" to see every allowed value.'));
+      }
+    }
+    process.exitCode = 1;
+  };
+
+  let config;
+  try {
+    await ensureInsideGitRepo();
+    ({ config } = await loadValidatedConfig());
+  } catch (error) {
+    fail([error instanceof Error ? error.message : String(error)]);
+    return;
+  }
+
+  const result = buildAndValidate(options, config);
+  if (!result.ok) {
+    fail(result.errors, {
+      header: result.header,
+      example: exampleHeader(config),
+      usage: describeRules(config).commands.commit
+    });
+    return;
+  }
+
+  let files;
+  try {
+    // A dry run only previews the header, so it works before anything is staged.
+    if (!options.dryRun) {
+      await ensureStagedFiles();
+    }
+    files = await getStagedFiles();
+  } catch (error) {
+    fail([error instanceof Error ? error.message : String(error)], { header: result.header });
+    return;
+  }
+
+  for (const warning of result.warnings) {
+    log(pc.yellow(`Warning: ${warning}`));
+  }
+
+  if (options.dryRun) {
+    if (json) {
+      printJson({ ok: true, dryRun: true, header: result.header, body: options.body ?? "", files, warnings: result.warnings });
+    } else {
+      log(`${pc.cyan("Dry run, nothing committed:")} ${pc.bold(result.header)}`);
+    }
+    return;
+  }
+
+  let commit;
+  try {
+    commit = await createCommit(result.header, { body: options.body });
+  } catch (error) {
+    // Hooks or git itself rejected the commit; surface git's own output.
+    const e = /** @type {{stderr?: string, stdout?: string, message?: string}} */ (error);
+    const detail = (e.stderr || e.stdout || e.message || "git commit failed").trim();
+    fail([detail], { header: result.header });
+    return;
+  }
+
+  if (json) {
+    printJson({ ok: true, hash: commit.hash, header: result.header, body: options.body ?? "", files, warnings: result.warnings });
+  } else {
+    const hashText = commit.hash ? ` ${pc.cyan(commit.hash)}` : "";
+    log(pc.green(`Committed:${hashText} ${result.header}`));
+  }
+}
+
 /**
  * Runs the end-to-end commit workflow:
  * validate environment, collect answers, create commit, and print next-step guidance.
  */
 export async function runCommitCommand(commandOptions = {}) {
+  if (hasCommitFlags(commandOptions) || commandOptions.json || commandOptions.dryRun) {
+    return runFlagsCommit(commandOptions);
+  }
+
+  if (!isInteractiveTerminal()) {
+    throw new Error(
+      [
+        "gitsmith needs an interactive terminal for prompts.",
+        "Scripts and AI agents can pass the parts as flags instead:",
+        '  gitsmith -t <type> -s <scope> -m "<message>"',
+        'Run "gitsmith rules" to see the allowed values.'
+      ].join("\n")
+    );
+  }
+
   try {
     console.log(pc.cyan("Preparing commit flow..."));
 
