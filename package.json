@@ -1,7 +1,7 @@
 {
   "name": "gitsmith",
-  "version": "0.2.1",
-  "description": "Stop writing inconsistent commit messages. GitSmith prompts you through your team's commit format so every commit follows the standard and your git history stays clean and trackable.",
+  "version": "1.0.1",
+  "description": "MCP-powered, agentic commit workflow: AI agents (Claude Code, Cursor) and developers commit through your team rules. Checked, formatted and enforced on every commit.",
   "type": "module",
   "bin": {
     "gitsmith": "./bin/cli.js"
@@ -26,8 +26,19 @@
     "git",
     "commit",
     "conventional-commits",
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "ai-agents",
+    "agentic",
+    "claude",
+    "claude-code",
+    "cursor",
+    "commitlint",
+    "commit-msg",
+    "git-hooks",
     "cli",
-    "productivity"
+    "developer-tools"
   ],
   "author": "",
   "license": "MIT",
