@@ -1,6 +1,6 @@
 {
   "name": "gitsmith",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP-powered, agentic commit workflow: AI agents (Claude Code, Cursor) and developers commit through your team rules. Checked, formatted and enforced on every commit.",
   "type": "module",
   "bin": {
