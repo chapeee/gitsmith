@@ -6,6 +6,8 @@
   "askBreaking": true,
   "format": "{type}({scope}): {message}",
   "headerMaxLength": 72,
+  "strictScopes": false,
+  "messageStyle": "conventional",
   "ai": {
     "enabled": true,
     "provider": "nvidia",

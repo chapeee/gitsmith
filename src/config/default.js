@@ -10,6 +10,8 @@ export const defaultConfig = {
   askBreaking: true,
   format: "{type}({scope}): {message}",
   headerMaxLength: 72,
+  strictScopes: true,
+  messageStyle: "conventional",
   ai: {
     enabled: true,
     askByDefault: true

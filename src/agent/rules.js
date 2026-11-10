@@ -18,6 +18,7 @@ export function describeRules(config) {
       prefix: config.askTicket ? (config.ticketPrefix ?? "") : ""
     },
     breaking: { used: config.askBreaking, marker: "!" },
+    messageStyle: config.messageStyle ?? "conventional",
     headerMaxLength: config.headerMaxLength ?? null,
     example: exampleHeader(config),
     commands: {
@@ -68,7 +69,11 @@ export function renderRulesMarkdown(config) {
   if (rules.breaking.used) {
     lines.push("- **breaking change**: pass `--breaking` (adds `!`)");
   }
-  lines.push("- **message**: imperative mood, lowercase, no trailing period");
+  lines.push(
+    rules.messageStyle === "off"
+      ? "- **message**: imperative mood"
+      : "- **message**: imperative mood, starts lowercase, no trailing period (enforced)"
+  );
   if (rules.headerMaxLength) {
     lines.push(`- **header length**: at most ${rules.headerMaxLength} characters`);
   }

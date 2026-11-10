@@ -80,6 +80,28 @@ export function splitCommitMessage(raw) {
   };
 }
 
+/**
+ * Conventional summary style: starts lowercase and has no trailing period.
+ * Acronyms are allowed at the start ("API ..."), and messageStyle "off" disables the check.
+ * @param {string} message
+ * @param {object} config
+ * @returns {string[]}
+ */
+export function messageStyleErrors(message, config) {
+  if (config.messageStyle === "off") {
+    return [];
+  }
+  const text = String(message ?? "").trim();
+  const errors = [];
+  if (/^[A-Z][a-z]/.test(text)) {
+    errors.push(`message must start with a lowercase letter: "${text[0].toLowerCase()}${text.slice(1)}".`);
+  }
+  if (/\.$/.test(text)) {
+    errors.push("message must not end with a period.");
+  }
+  return errors;
+}
+
 function normalizeTicket(ticket, config) {
   const value = String(ticket ?? "").trim();
   const prefix = config.ticketPrefix ?? "";
@@ -145,6 +167,8 @@ export function validateParts(parts, config) {
 
   if (!message) {
     errors.push("message cannot be empty.");
+  } else {
+    errors.push(...messageStyleErrors(message, config));
   }
 
   if (parts.breaking && !config.askBreaking) {

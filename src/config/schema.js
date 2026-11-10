@@ -26,6 +26,7 @@ const baseSchema = z
     format: z.string().min(1, "format is required"),
     headerMaxLength: z.number().int().positive().optional(),
     strictScopes: z.boolean().optional(),
+    messageStyle: z.enum(["conventional", "off"]).optional(),
     ai: aiSchema
   })
   .superRefine((config, ctx) => {

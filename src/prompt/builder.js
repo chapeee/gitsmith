@@ -1,6 +1,7 @@
 import enquirer from "enquirer";
 import pc from "picocolors";
 import { buildCommitMessage } from "../format/template.js";
+import { messageStyleErrors } from "../validate/message.js";
 
 const { prompt } = enquirer;
 // Reserved sentinel value used to detect custom scope selection.
@@ -126,7 +127,13 @@ export async function collectCommitData(config, options = {}) {
     name: "message",
     message: "Commit message",
     initial: String(initial.message ?? ""),
-    validate: (value) => (String(value).trim().length > 0 ? true : "Message cannot be empty")
+    validate: (value) => {
+      if (String(value).trim().length === 0) {
+        return "Message cannot be empty";
+      }
+      const styleErrors = messageStyleErrors(value, config);
+      return styleErrors.length === 0 ? true : styleErrors.join(" ");
+    }
   });
   const message = String(messageInput).trim();
 

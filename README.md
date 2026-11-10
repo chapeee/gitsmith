@@ -171,7 +171,8 @@ gitsmith check --file .git/COMMIT_EDITMSG --json
 - `askBreaking: boolean` (required)
 - `format: string` (required)
 - `headerMaxLength?: number`
-- `strictScopes?: boolean`: when `true`, `check`, the hook and no-prompt mode reject scopes that aren't in `scopes` (by default they only warn)
+- `strictScopes?: boolean`: when `true`, only scopes in `scopes` are allowed everywhere: the interactive flow hides "Other", AI can't invent scopes, and `check`, the hook and no-prompt mode reject unknown scopes. When `false` or missing, unknown scopes only get a warning. `gitsmith init` sets it to `true`.
+- `messageStyle?: "conventional" | "off"`: `"conventional"` (the default) requires the summary to start lowercase and have no trailing period. Acronyms such as `API` are allowed at the start. `"off"` turns the check off.
 
 Available format tokens:
 
@@ -192,6 +193,8 @@ Available format tokens:
   "askBreaking": true,
   "format": "{type}({scope}): {message}",
   "headerMaxLength": 72,
+  "strictScopes": true,
+  "messageStyle": "conventional",
   "ai": {
     "enabled": true,
     "askByDefault": true
