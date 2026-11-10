@@ -40,6 +40,18 @@ export async function askConfirm(message, initial = false) {
   });
 }
 
+/**
+ * Single-choice menu. `choices` are {name, message} pairs; returns the chosen name.
+ */
+export async function askSelect(message, choices) {
+  return ask({
+    type: "select",
+    name: "choice",
+    message,
+    choices
+  });
+}
+
 export async function askText(message, initial = "", validate) {
   return ask({
     type: "input",

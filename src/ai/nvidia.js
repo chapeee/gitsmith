@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = `You are a senior engineer that writes Conventional Commits messages. Read what the developer just did and return a single JSON object describing the commit. Be precise, calm, professional. No fluff.
+const SYSTEM_PROMPT = `You are a senior engineer that writes Conventional Commits messages. Read what the developer just did (their description, the staged diff, or both) and return a single JSON object describing the commit. When a diff is given, describe what the diff actually changes; use the description only for intent. Be precise, calm, professional. No fluff.
 
 You will be given the developer's .commitconfig.json values verbatim. Treat them as hard constraints.
 
@@ -45,14 +45,38 @@ export class AiValidationError extends Error {
   }
 }
 
-function buildUserPrompt(config, description) {
-  return `types: ${JSON.stringify(config.types)}
-scopes: ${JSON.stringify(config.scopes || [])}
-askScope: ${config.askScope}, askTicket: ${config.askTicket}, askBreaking: ${config.askBreaking}, allowNewScopes: ${config.ai.allowNewScopes}
+/**
+ * @param {object} config
+ * @param {string | undefined} description free-text intent from the developer (optional)
+ * @param {{stat: string, diff: string} | undefined} diff staged change (optional)
+ */
+export function buildUserPrompt(config, description, diff) {
+  const sections = [
+    `types: ${JSON.stringify(config.types)}`,
+    `scopes: ${JSON.stringify(config.scopes || [])}`,
+    `askScope: ${config.askScope}, askTicket: ${config.askTicket}, askBreaking: ${config.askBreaking}, allowNewScopes: ${config.ai.allowNewScopes}`,
+    ""
+  ];
 
-What I did: ${description}
+  const intent = String(description ?? "").trim();
+  if (intent) {
+    sections.push(`What I did: ${intent}`, "");
+  }
 
-Return the JSON object only.`;
+  if (diff?.diff) {
+    sections.push(
+      "Staged changes (the source of truth for what this commit does):",
+      diff.stat,
+      "",
+      "```diff",
+      diff.diff,
+      "```",
+      ""
+    );
+  }
+
+  sections.push("Return the JSON object only.");
+  return sections.join("\n");
 }
 
 function stripJsonFence(text) {
@@ -108,7 +132,7 @@ function validateSuggestion(result, config) {
   }
 }
 
-export async function suggestCommit({ description, config, apiKey }) {
+export async function suggestCommit({ description, diff, config, apiKey }) {
   const endpoint = config.ai.endpoint;
   const model = config.ai.model;
 
@@ -124,7 +148,7 @@ export async function suggestCommit({ description, config, apiKey }) {
         model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildUserPrompt(config, description) }
+          { role: "user", content: buildUserPrompt(config, description, diff) }
         ],
         temperature: 0.2,
         top_p: 0.9,

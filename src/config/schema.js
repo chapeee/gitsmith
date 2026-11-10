@@ -10,7 +10,8 @@ const aiSchema = z
     model: z.string().min(1, "ai.model cannot be empty").optional(),
     endpoint: z.string().url("ai.endpoint must be a valid URL").optional(),
     askByDefault: z.boolean().optional(),
-    allowNewScopes: z.boolean().optional()
+    allowNewScopes: z.boolean().optional(),
+    sendDiff: z.boolean().optional()
   })
   .optional();
 
