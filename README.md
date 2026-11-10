@@ -95,6 +95,22 @@ Requires Node.js 20 or newer. Check it works:
 gitsmith --help
 ```
 
+### Latest version from GitHub
+
+To get the newest code from `master` before it's released on npm, install the GitHub tarball:
+
+```bash
+npm install -g https://github.com/chapeee/gitsmith/tarball/master
+```
+
+Use the tarball URL rather than `github:chapeee/gitsmith`. On Windows, npm 11 can turn a `github:` global install into a link to a temporary clone that it then deletes, which leaves `gitsmith` broken. If that already happened, run `npm uninstall -g gitsmith` and install the tarball.
+
+Until the next npm release, register the MCP server with your installed `gitsmith` instead of `npx` (which fetches the npm release):
+
+```bash
+claude mcp add gitsmith --scope user -- gitsmith mcp
+```
+
 ## Quick start
 
 ```bash
@@ -612,11 +628,11 @@ gitsmith            # or: gitsmith -t <type> -s <scope> -m "<message>"
 ### Publishing
 
 ```bash
-npm run lint
-npm test
 npm version <patch|minor|major>
 npm publish
 ```
+
+`npm publish` runs lint and the full test suite first (`prepublishOnly`) and stops if either fails. Nothing runs when people install gitsmith, so there are no install scripts to approve.
 
 ## Roadmap
 

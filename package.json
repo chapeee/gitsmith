@@ -20,7 +20,7 @@
   "scripts": {
     "lint": "node --check bin/cli.js && node --check src/index.js && node --check src/commands/commit.js && node --check src/commands/init.js && node --check src/commands/key.js && node --check src/config/default.js && node --check src/config/loader.js && node --check src/config/schema.js && node --check src/prompt/builder.js && node --check src/format/template.js && node --check src/git/executor.js && node --check src/ai/credentials.js && node --check src/ai/nvidia.js && node --check src/validate/message.js && node --check src/agent/rules.js && node --check src/commands/check.js && node --check src/commands/rules.js && node --check src/commands/hook.js && node --check src/commands/agents.js && node --check src/commands/agent.js && node --check src/ui/spinner.js && node --check src/config/resolve.js && node --check src/config/presets.js && node --check src/core/commit.js && node --check src/mcp/server.js",
     "test": "node --test",
-    "prepare": "npm run lint"
+    "prepublishOnly": "npm run lint && npm test"
   },
   "keywords": [
     "git",
