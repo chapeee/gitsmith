@@ -1,6 +1,8 @@
 # gitsmith
 
-**The commit agent that follows your team's rules.** Run `gitsmith`: it reads your staged changes, writes a Conventional Commit that matches your `.commitconfig.json`, and commits once you approve.
+### The MCP-powered, agentic commit workflow: your rules, enforced for every AI agent and every developer.
+
+**gitsmith is an MCP server and CLI that puts your team's commit conventions between any committer and git.** AI coding agents like Claude Code and Cursor call it as tools: they write the message, gitsmith checks it against your rules, commits it, and tells them exactly what to fix when it's wrong. Developers get the same rules through an AI-assisted `gitsmith` command and a `commit-msg` hook.
 
 [![npm version](https://img.shields.io/npm/v/gitsmith?color=cb3837)](https://www.npmjs.com/package/gitsmith)
 [![npm downloads](https://img.shields.io/npm/dm/gitsmith?color=blue)](https://www.npmjs.com/package/gitsmith)
@@ -9,10 +11,19 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/chapeee/gitsmith/pulls)
 [![issues](https://img.shields.io/github/issues/chapeee/gitsmith)](https://github.com/chapeee/gitsmith/issues)
 
-![GitSmith commit flow](./assets/commit.gif)
+![Claude Code committing through gitsmith: it reads the rules, commits, is rejected for a capitalized message with a trailing period, fixes it and retries](./assets/how-it-works.svg)
+
+<sub>Example: Claude Code. Other MCP clients show the same steps in their own UI. The Plan card is Claude Code's task list, not part of gitsmith.</sub>
+
+```bash
+npm install -g gitsmith
+cd your-project && gitsmith init && gitsmith agents --mcp   # rules + AGENTS.md + .mcp.json
+```
 
 ## Contents
 
+- [Why gitsmith](#why-gitsmith)
+- [How it works](#how-it-works)
 - [Overview](#overview)
 - [Features](#features)
 - [Install](#install)
@@ -29,6 +40,31 @@
 - [Roadmap](#roadmap)
 - [AI contributors](#ai-contributors)
 - [Open source](#open-source)
+
+## Why gitsmith
+
+AI agents now write a large share of commits, and they guess at your conventions. Each agent formats messages its own way, a commit-message prompt gets ignored or forgotten, and nothing checks the result until it's already in your history.
+
+gitsmith turns your conventions into something agents can **read, call and be checked against**:
+
+| Without gitsmith | With gitsmith |
+| --- | --- |
+| Rules live in a wiki or a prompt | Rules live in `.commitconfig.json`, readable through `get_rules` |
+| Each agent guesses the format | Every agent commits through the same `commit` tool |
+| Mistakes land in history | Bad messages are rejected before git, with the exact fix |
+| Agents dump everything into one commit | `commit` with `files` splits work into focused commits |
+| Every repo reinvents its rules | Repos `extend` shared presets, files, URLs or npm packages |
+| AI work is invisible | `co_authors` lets the agent credit itself with a `Co-Authored-By` trailer |
+
+## How it works
+
+1. **Rules.** You describe your conventions once in `.commitconfig.json`, or extend shared ones: types, scopes, format, message style, length.
+2. **Tools.** `gitsmith mcp` exposes five tools to any MCP client: `get_rules`, `get_status`, `get_diff`, `check_message` and `commit`. Agents without MCP use the same engine through the CLI (`gitsmith -t … -m … --json`).
+3. **Agent writes, gitsmith checks.** The agent knows what it changed, so it writes the message. gitsmith builds the header from your format, validates it and commits only the files named.
+4. **Feedback loop.** A rule break commits nothing and returns machine-readable errors such as `message must start with a lowercase letter`. The agent fixes them and calls again.
+5. **Everyone else too.** The same engine powers the `commit-msg` hook, so plain `git commit` from people, IDEs and agents is checked as well.
+
+No API key is needed for any of this. The optional NVIDIA model only drafts messages for people who run plain `gitsmith`.
 
 ## Overview
 
@@ -95,20 +131,19 @@ Requires Node.js 20 or newer. Check it works:
 gitsmith --help
 ```
 
-### Latest version from GitHub
+### Connect your AI agent
 
-To get the newest code from `master` before it's released on npm, install the GitHub tarball:
+```bash
+gitsmith agents --mcp                                  # per project: writes .mcp.json and AGENTS.md
+claude mcp add gitsmith --scope user -- npx -y gitsmith mcp   # or: Claude Code, all projects
+```
+
+For Cursor, add the same server to `.cursor/mcp.json`. On Windows, if the server doesn't start, use `"command": "cmd"` with `"args": ["/c", "npx", "-y", "gitsmith", "mcp"]`.
+
+### Unreleased changes from GitHub
 
 ```bash
 npm install -g https://github.com/chapeee/gitsmith/tarball/master
-```
-
-Use the tarball URL rather than `github:chapeee/gitsmith`. On Windows, npm 11 can turn a `github:` global install into a link to a temporary clone that it then deletes, which leaves `gitsmith` broken. If that already happened, run `npm uninstall -g gitsmith` and install the tarball.
-
-Until the next npm release, register the MCP server with your installed `gitsmith` instead of `npx` (which fetches the npm release):
-
-```bash
-claude mcp add gitsmith --scope user -- gitsmith mcp
 ```
 
 ## Quick start
@@ -174,6 +209,11 @@ gitsmith --co-author "Claude <noreply@anthropic.com>"
 | `gitsmith commit` | Guided prompts | Pick type, scope and message step by step, with optional AI help |
 | `gitsmith --no-ai` | Guided prompts, no AI | Fully manual |
 | `gitsmith -t <type> -s <scope> -m "<msg>"` | No-prompt | AI agents, scripts, CI |
+| `gitsmith mcp` | MCP server | AI agents that speak MCP (started by the agent app) |
+
+The guided prompts (`gitsmith commit`):
+
+![gitsmith guided prompts](./assets/commit.gif)
 
 ## Commands
 
@@ -562,54 +602,29 @@ src/
 test/                      unit tests and end-to-end tests
 ```
 
-How a plain `gitsmith` run works:
+How a plain `gitsmith` run is routed:
 
-```mermaid
-flowchart TD
-  A[gitsmith] --> B{commit-part flags?}
-  B -- yes --> F[no-prompt mode: validate and commit]
-  B -- no --> C{--no-ai?}
-  C -- yes --> G[guided prompts]
-  C -- no --> D[agent]
-  D --> E{something staged?}
-  E -- no --> E2[offer to stage all / --all]
-  E -- yes --> H{AI on and key found?}
-  E2 --> H
-  H -- no --> G
-  H -- yes --> I[read staged diff]
-  I --> J[AI suggests type, scope, message]
-  J --> K{passes the rules?}
-  K -- no, retry up to 3x --> J
-  K -- yes --> L{approve?}
-  L -- Commit --> M[git commit]
-  L -- Edit --> G
-  L -- Regenerate --> J
-  L -- Cancel --> N[stop, staged changes kept]
-```
+| Input | Path |
+| --- | --- |
+| commit-part flags (`-t`, `-m`, `--files`, …) | no-prompt mode: validate and commit (`core/commit.js`) |
+| `--no-ai` | guided prompts |
+| nothing staged | offer to stage everything (or `--all`) |
+| no AI key, or AI off | guided prompts |
+| otherwise | read the staged diff → AI suggests → validate, retrying up to 3 times → Commit / Edit / Regenerate / Cancel |
 
 One rule engine (`src/validate/message.js`) serves every path: the agent, the guided prompts, no-prompt mode, the MCP server, `check` and the hook. One resolver (`src/config/resolve.js`) produces the rules they all use. That's why every path agrees about what is valid.
 
-An AI coding agent connected over MCP:
+An AI coding agent connected over MCP, behind the scenes:
 
-```mermaid
-sequenceDiagram
-  participant A as AI agent (Claude Code, Cursor…)
-  participant G as gitsmith mcp
-  participant R as git repo
-  A->>G: get_rules
-  G-->>A: types, scopes, format, style
-  A->>G: get_status / get_diff
-  G->>R: git status / git diff
-  G-->>A: files and changes
-  A->>G: commit {type, scope, message, files}
-  G->>G: validate against the rules
-  alt breaks a rule
-    G-->>A: error: what to fix
-    A->>G: commit (corrected)
-  end
-  G->>R: git commit -- files
-  G-->>A: ok, hash
-```
+| Step | Agent calls | gitsmith does | Agent gets back |
+| --- | --- | --- | --- |
+| 1 | `get_rules` | resolves `extends`, loads `.commitconfig.json` | types, scopes, format, style, where each rule came from |
+| 2 | `get_status` / `get_diff` | `git status` / `git diff` | staged, unstaged and untracked files; diffs |
+| 3 | `commit {type, scope, message, files}` | builds the header from the format, validates it | — |
+| 3a | | rule broken: commits nothing | `isError` + errors such as `message must not end with a period` |
+| 3b | `commit` again, corrected | `git add` + `git commit -- <files>` | `ok`, hash, header, files |
+
+The image at the top of this README shows this exact sequence in a Claude Code session.
 
 ## Development
 
@@ -653,7 +668,7 @@ Ideas and pull requests are welcome.
 
 ## AI contributors
 
-Parts of gitsmith are written with [Claude](https://claude.com) (Anthropic). Claude-assisted commits carry a `Co-Authored-By: Claude` trailer, which is why Claude appears among the repo's contributors. Every change is reviewed and merged by [@chapeee](https://github.com/chapeee). Weekly maintenance runs open pull requests for review; they are never merged automatically.
+Much of gitsmith is written with [Claude](https://claude.com) (Anthropic), using gitsmith itself. Claude-assisted commits carry a `Co-Authored-By: Claude` trailer, and some, such as the 1.0 release, are authored and merged by Claude at [@chapeee](https://github.com/chapeee)'s request. The project is directed and reviewed by @chapeee. Weekly maintenance runs open pull requests for review; they are never merged automatically.
 
 ## Open source
 
