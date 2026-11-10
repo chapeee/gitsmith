@@ -191,6 +191,8 @@ test("e2e: plain `gitsmith` is the agent", { skip: !hasGit && "git not installed
     assert.equal(result.code, 1);
     assert.match(result.stderr, /No NVIDIA API key/);
     assert.equal(commitCount(dir), 0);
+    // It must stop before staging anything.
+    assert.equal(git(dir, "diff", "--cached", "--name-only").stdout.trim(), "");
   });
 
   await t.test("--yes --all stages, reads the diff, fixes rule breaks and commits", async () => {
