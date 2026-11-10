@@ -1,5 +1,7 @@
 // Canonical config filename discovered from the current directory upward.
 export const CONFIG_FILE_NAME = ".commitconfig.json";
+// Personal, uncommitted overrides; limited to ai settings so team rules stay intact.
+export const LOCAL_CONFIG_FILE_NAME = ".commitconfig.local.json";
 
 // Sensible out-of-the-box setup based on standard conventional commits.
 export const defaultConfig = {
