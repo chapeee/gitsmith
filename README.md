@@ -1,53 +1,76 @@
 # gitsmith
 
-GitSmith: AI powered configurable conventional commits CLI for teams and solo developers.
+**The commit agent that follows your team's rules.** Run `gitsmith`: it reads your staged changes, writes a Conventional Commit that matches your `.commitconfig.json`, and commits once you approve.
 
 [![npm version](https://img.shields.io/npm/v/gitsmith?color=cb3837)](https://www.npmjs.com/package/gitsmith)
 [![npm downloads](https://img.shields.io/npm/dm/gitsmith?color=blue)](https://www.npmjs.com/package/gitsmith)
-[![license](https://img.shields.io/github/license/chapeee/gitsmith?color=orange)](https://github.com/chapeee/gitsmith/blob/main/LICENSE)
+[![license](https://img.shields.io/github/license/chapeee/gitsmith?color=orange)](https://github.com/chapeee/gitsmith/blob/master/LICENSE)
 [![node](https://img.shields.io/node/v/gitsmith?color=339933)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/chapeee/gitsmith/pulls)
 [![issues](https://img.shields.io/github/issues/chapeee/gitsmith)](https://github.com/chapeee/gitsmith/issues)
 
-**gitsmith** is a AI powered configurable Conventional Commits CLI that adapts to every project through a single `.commitconfig.json` file. Install it once globally, drop a config in any repo, and ship clean, consistent commits every time. Optional AI assist turns "what did you do?" into a perfectly formatted commit using a free NVIDIA model, so you stop fighting the type, scope, and wording every time you commit.
-
-## Screenshots
-
-### Commit flow
-
 ![GitSmith commit flow](./assets/commit.gif)
 
-### AI flow (NVIDIA API)
+## Contents
 
-Use `gitsmith --ai` to force the AI prompt and generate suggestions from your NVIDIA AI API key.
-
-## Quick Links
-
-- [Features](#features-v1)
-- [Quick Start](#quick-start)
+- [Overview](#overview)
+- [Features](#features)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [The agent (default)](#the-agent-default)
+- [Modes at a glance](#modes-at-a-glance)
 - [Commands](#commands)
-- [AI-assisted commits](#ai-assisted-commits)
-- [Local Development](#local-development)
-- [Open Source](#open-source)
+- [Agentic workflow: AI agents, scripts and CI](#agentic-workflow-ai-agents-scripts-and-ci)
+- [Configuration](#configuration)
+- [AI setup](#ai-setup)
+- [Privacy](#privacy)
+- [Architecture](#architecture)
+- [Development](#development)
+- [Roadmap](#roadmap)
+- [AI contributors](#ai-contributors)
+- [Open source](#open-source)
 
-## Why GitSmith
+## Overview
 
-- Keeps commit messages consistent across teams and repos
-- Supports custom project formats through `.commitconfig.json`
-- Uses optional NVIDIA AI API suggestions for faster commit writing
-- Falls back to manual prompts when AI is disabled or key is missing
-- Runs safety checks before commit to reduce mistakes
+Every team has a commit format, and almost nobody follows it consistently. People forget the scope, AI coding agents ignore the format completely, and the history turns into "wip" and "fix stuff".
 
-## Features (v1)
+gitsmith fixes this from both sides:
 
-- Project-aware commit format via `.commitconfig.json`
-- Interactive prompts powered by `enquirer`
-- Config validation with clear errors (`zod`)
-- Config file discovery by walking up directories (`find-up`)
-- Git safety checks (must be git repo, must have staged files)
-- Commit preview + confirmation before running `git commit`
-- `init` command that generates a conventional default config
-- Optional AI suggestions powered by the NVIDIA AI API
+- **It writes the commit for you.** `gitsmith` on its own is an agent. It looks at what you staged, writes a message in your format, checks it against your rules and commits when you say so.
+- **It enforces the format for everyone else.** A `commit-msg` hook rejects bad messages from any source: people, IDEs or AI agents running plain `git commit`. The error says exactly what to fix.
+- **It works for machines too.** AI agents and scripts can commit without prompts, read the rules as JSON and get machine-readable results.
+
+The rules live in a single `.commitconfig.json` in your repo. Install gitsmith once, add a config to each repo, and every commit comes out consistent.
+
+## Features
+
+**The agent**
+- `gitsmith` reads the staged diff and writes the commit with AI (a free NVIDIA model)
+- Every suggestion is checked against your rules. If one breaks them, the agent retries with the violations as feedback
+- Commit, Edit, Regenerate or Cancel before anything is written
+- Offers to stage everything when nothing is staged (`--all` does it straight away)
+- Falls back to guided prompts when there is no API key or AI is off
+- `--yes` commits without asking, for scheduled jobs and automation
+
+**Rules and enforcement**
+- Your format, types, scopes, ticket prefix and length limit, all in `.commitconfig.json`
+- Strict scopes: only listed scopes are allowed (the default for new configs)
+- Message style: summary starts lowercase, no trailing period (acronyms like `API` are fine)
+- `commit-msg` hook that checks every commit, including plain `git commit`
+- `gitsmith check` validates any message without committing
+
+**Built for AI agents and scripts**
+- No-prompt mode: `gitsmith -t feat -s api -m "add retry logic"`
+- `--json` output and exit code 1 on errors, so tools can react and retry
+- `gitsmith rules --json` tells an agent what is allowed
+- `gitsmith agents` writes the rules into `AGENTS.md`, `CLAUDE.md` or `.cursorrules`
+- `--co-author` and `--author` for crediting AI and pair work
+- Never hangs without a terminal: it exits with a hint instead
+
+**Safety**
+- Must be inside a git repo, with something staged
+- Config validated with clear errors
+- Config found by walking up from the current folder, so it works from any subfolder
 
 ## Install
 
@@ -55,64 +78,163 @@ Use `gitsmith --ai` to force the AI prompt and generate suggestions from your NV
 npm install -g gitsmith
 ```
 
-Then run the CLI command:
+Requires Node.js 20 or newer. Check it works:
 
 ```bash
 gitsmith --help
 ```
 
-## Quick Start
-
-1. Go to your project:
+## Quick start
 
 ```bash
 cd your-project
-```
-
-1. Initialize config:
-
-```bash
-gitsmith init
-```
-
-1. Edit `.commitconfig.json` as needed.
-2. Stage files:
-
-```bash
+gitsmith init          # creates .commitconfig.json
+gitsmith key:set       # paste a free NVIDIA API key (build.nvidia.com)
 git add .
+gitsmith               # the agent writes the commit; approve it
 ```
 
-1. Run commit flow:
+No API key? `gitsmith` still works: it switches to guided prompts that walk you through type, scope and message.
+
+## The agent (default)
+
+Running `gitsmith` with no arguments starts the agent:
+
+```text
+$ gitsmith
+gitsmith agent: 2 staged file(s)
+  src/auth/login.js
+  test/login.test.js
+
+Proposed commit: fix(auth): redirect to the dashboard after login
+Why: changes the post-login redirect target and adds a test for it
+
+? What next? ›
+❯ Commit
+  Edit before committing
+  Regenerate
+  Cancel
+```
+
+What it does, step by step:
+
+1. Checks you are in a git repo and loads `.commitconfig.json`.
+2. If nothing is staged, lists your changed files and offers to stage them all.
+3. Reads the staged diff. Lock files and minified files are left out, and very large diffs are cut short.
+4. Asks the AI for a commit that follows your types, scopes and format.
+5. Validates the suggestion against your rules. If it breaks one (an unknown scope, a capital letter, a trailing period), the agent asks again with the violations as feedback, up to 3 times.
+6. Shows the proposed commit and why it was chosen, then waits for your choice:
+   - **Commit**: commits it.
+   - **Edit before committing**: opens the guided prompts pre-filled with the suggestion.
+   - **Regenerate**: asks the AI for another suggestion.
+   - **Cancel**: leaves your staged changes as they are.
+
+Useful options:
 
 ```bash
-gitsmith
+gitsmith --all                          # stage everything first if nothing is staged
+gitsmith --hint "fix the login redirect"  # tell the agent what the change is for
+gitsmith --yes --all                    # commit without asking (automation)
+gitsmith --co-author "Claude <noreply@anthropic.com>"
 ```
+
+## Modes at a glance
+
+| You run | Mode | Use it for |
+| --- | --- | --- |
+| `gitsmith` | **Agent** (default) | Everyday commits: AI writes, you approve |
+| `gitsmith --yes` | Agent, auto-approve | Scheduled jobs, automation |
+| `gitsmith commit` | Guided prompts | Pick type, scope and message step by step, with optional AI help |
+| `gitsmith --no-ai` | Guided prompts, no AI | Fully manual |
+| `gitsmith -t <type> -s <scope> -m "<msg>"` | No-prompt | AI agents, scripts, CI |
 
 ## Commands
 
-- `gitsmith` or `gitsmith commit`: Start interactive commit flow
-- `gitsmith --ai`: Force AI prompt for this run
-- `gitsmith --no-ai`: Skip AI prompt for this run
-- `gitsmith init`: Create `.commitconfig.json` in current directory
-- `gitsmith init --force`: Overwrite existing config
-- `gitsmith key:set [key]`: Save or overwrite NVIDIA API key
-- `gitsmith key:show`: Show masked key
-- `gitsmith key:remove`: Remove saved key
-- `gitsmith key:reset`: Alias for `key:remove`
-- `gitsmith key:status`: Show saved key status
-- `gitsmith -t <type> -s <scope> -m "<message>"`: Commit without prompts (see [Scripts and AI agents](#scripts-and-ai-agents))
-- `gitsmith check "<message>"`: Check a message against the config without committing
-- `gitsmith rules [--json]`: Print the commit rules
-- `gitsmith hook install` / `gitsmith hook uninstall`: Manage the `commit-msg` hook
-- `gitsmith agents [--file <path...>]`: Write the commit rules into `AGENTS.md` and similar files
+### Committing
 
-## Scripts and AI agents
+| Command | What it does |
+| --- | --- |
+| `gitsmith` / `gitsmith agent` | Start the agent |
+| `gitsmith commit` | Guided prompts |
+| `gitsmith -t <type> -m "<msg>" [...]` | Commit without prompts |
 
-AI coding agents (Claude Code, Cursor, Copilot and others) and CI scripts can't answer prompts. gitsmith gives them a way to commit in your format, and blocks commits that break it.
+Options for committing:
 
-### Commit without prompts
+| Option | Meaning |
+| --- | --- |
+| `-a, --all` | Agent: stage all changes when nothing is staged |
+| `-y, --yes` | Agent: commit without asking |
+| `--hint <text>` | Agent: tell it what the change is for |
+| `--no-ai` | Skip the agent and use the guided prompts |
+| `--ai` | Guided prompts: ask for AI help |
+| `-t, --type <type>` | Commit type; must be in `types` |
+| `-s, --scope <scope>` | Scope; required when `scopes` is set |
+| `-m, --message <msg>` | Summary |
+| `--ticket <id>` | Ticket id; `ticketPrefix` is added if missing |
+| `-b, --breaking` | Breaking change; adds `!` |
+| `--body <text>` | Commit body |
+| `--co-author <person>` | Adds `Co-Authored-By: <person>`; repeatable; format `"Name <email>"` |
+| `--author <person>` | Sets the commit author; you stay the committer |
+| `--dry-run` | Validate and show the header; commit nothing |
+| `--json` | Machine-readable output |
 
-Passing any commit part as a flag switches gitsmith to no-prompt mode:
+### Rules and enforcement
+
+| Command | What it does |
+| --- | --- |
+| `gitsmith check "<message>"` | Check a message against the rules (exit 1 if invalid) |
+| `gitsmith check --file <path>` | Check a message file; used by the hook |
+| `gitsmith check --stdin` | Check a message from stdin |
+| `gitsmith rules [--json]` | Print the commit rules |
+| `gitsmith hook install [--force]` | Install the `commit-msg` hook |
+| `gitsmith hook uninstall` | Remove the hook (only if gitsmith wrote it) |
+| `gitsmith agents [--file <paths...>]` | Write the rules into agent instruction files (default `AGENTS.md`) |
+
+### Setup and keys
+
+| Command | What it does |
+| --- | --- |
+| `gitsmith init [--force]` | Create `.commitconfig.json` |
+| `gitsmith key:set [key]` | Save your NVIDIA API key; prompts if no key is given |
+| `gitsmith key:show` | Show the saved key, masked |
+| `gitsmith key:status` | Show the provider, the key source and when it was saved |
+| `gitsmith key:remove` | Remove the saved key (`key:reset` is an alias) |
+
+## Agentic workflow: AI agents, scripts and CI
+
+AI coding agents (Claude Code, Cursor, Copilot, Codex and others) can't answer interactive prompts, so they usually fall back to plain `git commit` and ignore your format. gitsmith gives them a proper path, and blocks them when they go around it.
+
+### 1. Tell agents the rules
+
+```bash
+gitsmith agents                                  # writes a "Commit messages" section into AGENTS.md
+gitsmith agents --file AGENTS.md CLAUDE.md .cursorrules
+gitsmith rules --json                            # the rules as JSON
+```
+
+`gitsmith agents` keeps its section between `<!-- gitsmith:start -->` and `<!-- gitsmith:end -->`. Re-running it updates that section and leaves the rest of the file alone.
+
+`gitsmith rules --json` returns:
+
+```json
+{
+  "format": "{type}({scope}): {message}",
+  "types": ["feat", "fix", "docs", "chore", "refactor", "test", "style"],
+  "scope": { "used": true, "allowed": ["auth", "ui", "api", "db", "config"], "strict": true },
+  "ticket": { "used": false, "prefix": "" },
+  "breaking": { "used": true, "marker": "!" },
+  "messageStyle": "conventional",
+  "headerMaxLength": 72,
+  "example": "feat(auth): add short summary in imperative mood",
+  "commands": {
+    "commit": "gitsmith -t feat -s auth -m \"<imperative summary>\"",
+    "validate": "gitsmith check \"<header>\"",
+    "dryRun": "gitsmith -t feat -s auth -m \"<imperative summary>\" --dry-run --json"
+  }
+}
+```
+
+### 2. Commit without prompts
 
 ```bash
 gitsmith -t feat -s api -m "add retry logic"
@@ -120,69 +242,75 @@ gitsmith -t fix -s ui -m "handle empty input" --body "Longer explanation." --bre
 gitsmith -t feat -s api -m "add retry logic" --dry-run --json
 ```
 
-| Flag | Meaning |
-| --- | --- |
-| `-t, --type` | commit type (must be in `types`) |
-| `-s, --scope` | scope (required when `scopes` is set) |
-| `-m, --message` | summary |
-| `--ticket` | ticket id; `ticketPrefix` is added if missing |
-| `-b, --breaking` | adds the `!` marker |
-| `--body` | commit body |
-| `--dry-run` | validate and show the header, commit nothing |
-| `--json` | machine-readable result: `{ ok, hash, header, body, files, warnings }` or `{ ok: false, errors }` |
+With `--json` the result is:
 
-Invalid input exits with code 1 and says what to fix, for example `type "feet" is not allowed. Allowed: feat, fix, ...`. If gitsmith is run without flags and without a terminal, it exits with a hint instead of waiting for input.
+```json
+{ "ok": true, "hash": "1366e71", "header": "feat(api): add retry logic", "body": "", "author": null, "files": ["src/api.js"], "warnings": [] }
+```
 
-### Enforce the format for every commit
+or, when something is wrong (exit code 1):
+
+```json
+{ "ok": false, "errors": ["type \"feet\" is not allowed. Allowed: feat, fix, docs, chore, refactor, test, style"] }
+```
+
+An agent reads the errors, fixes the message and tries again.
+
+### 3. Let gitsmith be the agent
+
+When the environment has an API key, an automated job doesn't need to write the message at all:
+
+```bash
+GITSMITH_AI_KEY=... gitsmith --yes --all
+```
+
+This stages everything, writes a commit that follows the rules and commits it. Without a terminal and without `--yes`, gitsmith refuses and explains, so it never hangs or reports a success that didn't happen.
+
+### 4. Enforce the format for every commit
 
 ```bash
 gitsmith hook install
 ```
 
-This installs a `commit-msg` hook that runs `gitsmith check` on every commit, including plain `git commit` from people, IDEs and agents. Rejected messages list what is wrong and show an example. Merge, revert and `fixup!` messages are skipped. The hook respects `core.hooksPath`, and it won't overwrite an existing hook unless you pass `--force`.
+This installs a `commit-msg` hook that runs `gitsmith check` on every commit:
 
-### Tell agents the rules
-
-```bash
-gitsmith agents                       # writes AGENTS.md
-gitsmith agents --file AGENTS.md CLAUDE.md .cursorrules
-gitsmith rules --json                 # rules as JSON, for tools
+```text
+$ git commit -m "feat(validation): Add checks."
+gitsmith: commit message rejected: "feat(validation): Add checks."
+  - scope "validation" is not in the list. Allowed: auth, ui, api, db, config
+  - message must start with a lowercase letter: "add checks.".
+  - message must not end with a period.
+  Expected format: {type}({scope}): {message}
+  Example: feat(auth): add short summary in imperative mood
 ```
 
-`gitsmith agents` keeps its section between `<!-- gitsmith:start -->` and `<!-- gitsmith:end -->` markers, so re-running it updates the rules and leaves the rest of the file alone.
+How the hook behaves:
+- Merge, revert, `fixup!`, `squash!` and `amend!` messages are skipped.
+- Git comment lines and the `commit -v` diff are ignored.
+- It prefers a project-local gitsmith (`node_modules/.bin`), then a global one. If neither exists, it lets the commit through with a note.
+- Without a `.commitconfig.json` it lets commits through.
+- It respects `core.hooksPath`, and it won't replace a hook it didn't write unless you pass `--force`.
 
-### Check a message
+### 5. Credit AI and pair work
 
 ```bash
-gitsmith check "feat(api): add retry logic"
-git log -1 --format=%B | gitsmith check --stdin
-gitsmith check --file .git/COMMIT_EDITMSG --json
+gitsmith --co-author "Claude <noreply@anthropic.com>"
+gitsmith -t feat -s api -m "add retry logic" --co-author "Claude <noreply@anthropic.com>" --co-author "Pat <pat@example.com>"
+gitsmith --yes --author "Claude <noreply@anthropic.com>"
 ```
 
-## Config Schema
+`--co-author` adds `Co-Authored-By` trailers, which GitHub shows on the commit and counts toward the repo's contributors. `--author` changes the commit author while the configured git user stays the committer.
 
-`.commitconfig.json` supports:
+### Exit codes
 
-- `types: string[]` (required)
-- `askScope: boolean` (required)
-- `scopes?: string[]`
-- `askTicket: boolean` (required)
-- `ticketPrefix?: string`
-- `askBreaking: boolean` (required)
-- `format: string` (required)
-- `headerMaxLength?: number`
-- `strictScopes?: boolean`: when `true`, only scopes in `scopes` are allowed everywhere: the interactive flow hides "Other", AI can't invent scopes, and `check`, the hook and no-prompt mode reject unknown scopes. When `false` or missing, unknown scopes only get a warning. `gitsmith init` sets it to `true`.
-- `messageStyle?: "conventional" | "off"`: `"conventional"` (the default) requires the summary to start lowercase and have no trailing period. Acronyms such as `API` are allowed at the start. `"off"` turns the check off.
+| Code | Meaning |
+| --- | --- |
+| `0` | Success: committed, valid message, or dry run done |
+| `1` | Invalid input, a rule broken, git refused the commit, no terminal for a mode that needs one, or (without a terminal) nothing to commit |
 
-Available format tokens:
+## Configuration
 
-- `{type}`
-- `{scope}`
-- `{ticket}`
-- `{message}`
-- `{breaking}` (`!` when true, otherwise empty)
-
-### Default Config
+gitsmith reads `.commitconfig.json`, searching upward from the current folder. `gitsmith init` writes this default:
 
 ```json
 {
@@ -202,116 +330,169 @@ Available format tokens:
 }
 ```
 
-## Example
+### Options
 
-Given:
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `types` | `string[]` | yes | Allowed commit types |
+| `askScope` | `boolean` | yes | Whether commits have a scope |
+| `scopes` | `string[]` | no | Allowed scopes; when set, a scope is required |
+| `strictScopes` | `boolean` | no | `true`: only listed scopes everywhere (the prompts hide "Other", AI can't invent scopes, and checks reject unknown ones). `false` or missing: unknown scopes only warn |
+| `askTicket` | `boolean` | yes | Whether commits carry a ticket id |
+| `ticketPrefix` | `string` | no | Prefix added to ticket numbers, e.g. `"JIRA-"` (only with `askTicket`) |
+| `askBreaking` | `boolean` | yes | Whether breaking changes can be marked with `!` |
+| `format` | `string` | yes | Header template; must include `{type}` and `{message}` |
+| `headerMaxLength` | `number` | no | Warn when the header is longer than this |
+| `messageStyle` | `"conventional"` \| `"off"` | no | `"conventional"` (default): summary starts lowercase, no trailing period |
+| `ai` | `object` | no | AI settings, see below. Without it, the agent falls back to guided prompts |
 
-- `type = feat`
-- `scope = auth`
-- `ticket = PROJ-123`
-- `message = add login flow`
+### Format tokens
 
-and format:
+| Token | Becomes |
+| --- | --- |
+| `{type}` | the commit type |
+| `{scope}` | the scope |
+| `{ticket}` | the ticket id, with prefix |
+| `{message}` | the summary |
+| `{breaking}` | `!` for a breaking change, otherwise nothing |
 
-```text
-{type}({scope}): {ticket} {message}
-```
-
-final commit header:
+Example: with `"format": "{type}({scope}): {ticket} {message}"`, type `feat`, scope `auth`, ticket `PROJ-123` and message `add login flow`, the header is:
 
 ```text
 feat(auth): PROJ-123 add login flow
 ```
 
-## AI-assisted commits
+### AI options
 
-AI is optional and fully additive. If your project has no `ai` block, behavior stays exactly the same.
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `ai.enabled` | — | Required in the block; `true` turns AI on |
+| `ai.provider` | `"nvidia"` | AI provider |
+| `ai.model` | `"nvidia/llama-3.3-nemotron-super-49b-v1"` | Model name |
+| `ai.endpoint` | `"https://integrate.api.nvidia.com/v1/chat/completions"` | OpenAI-compatible chat endpoint |
+| `ai.askByDefault` | `true` | Guided prompts: ask "Need AI help?" each time |
+| `ai.allowNewScopes` | `true` | Let the AI suggest a new scope (always off when `strictScopes` is true) |
+| `ai.sendDiff` | `true` | Agent: send the staged diff to the AI. `false` sends only a description you type (or `--hint`) |
 
-### Quick start
+A fuller example is in [`.commitconfig.advanced.json`](./.commitconfig.advanced.json).
 
-```bash
-npm install -g gitsmith
-gitsmith key:set
-gitsmith
+## AI setup
+
+1. Get a free API key at [build.nvidia.com](https://build.nvidia.com).
+2. Save it with `gitsmith key:set`. It's stored in `~/.gitsmith/credentials.json`, readable only by you on macOS and Linux.
+3. For CI and scripts, set `GITSMITH_AI_KEY` instead; it overrides the saved key.
+
+If NVIDIA rejects the key, the agent says so and offers the guided prompts. Run `gitsmith key:set` to replace it.
+
+## Privacy
+
+- **The agent (default)** sends the staged diff, the file list and your config's types and scopes to the configured AI endpoint (NVIDIA by default). Lock files and minified files are left out, and large diffs are cut short.
+- Set `"ai": { "sendDiff": false }` to keep code local. The agent then sends only a description you type, or the text of `--hint`.
+- **Guided prompts** (`gitsmith commit`) send only the description you type, and only when you ask for AI help.
+- **No-prompt mode, `check`, `rules`, the hook and `agents`** make no network requests.
+- Your API key is sent only to the configured endpoint.
+
+## Architecture
+
+```text
+bin/cli.js                 entry point
+src/
+  index.js                 commands and routing (commander)
+  commands/
+    agent.js               default: diff -> AI -> validate -> approve -> commit
+    commit.js              guided prompts and no-prompt flags mode
+    check.js               validate a message (also used by the hook)
+    rules.js               print the rules (Markdown or JSON)
+    hook.js                install/uninstall the commit-msg hook
+    agents.js              write rules into AGENTS.md and similar files
+    init.js                create .commitconfig.json
+    key.js                 API key commands
+  ai/
+    nvidia.js              prompt building, API call, response checks
+    credentials.js         key storage and lookup (env var first)
+  agent/rules.js           rules as data and Markdown
+  validate/message.js      the rule engine: parse, validate, build headers
+  config/                  defaults, loading and schema (zod)
+  git/executor.js          git calls: staged files, diff, commit, hooks dir
+  prompt/builder.js        interactive prompts (enquirer)
+  format/template.js       renders the format template
+  ui/spinner.js            progress spinner (terminal only)
+test/                      unit tests and end-to-end tests
 ```
 
-### NVIDIA AI API key
+How a plain `gitsmith` run works:
 
-Get a free key from [build.nvidia.com](https://build.nvidia.com).
-
-### Enable AI in `.commitconfig.json`
-
-```json
-{
-  "types": ["feat", "fix", "docs", "chore", "refactor", "test", "style"],
-  "askScope": true,
-  "scopes": ["auth", "ui", "api", "db", "config"],
-  "askTicket": false,
-  "askBreaking": true,
-  "format": "{type}({scope}): {message}",
-  "ai": {
-    "enabled": true,
-    "provider": "nvidia",
-    "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
-    "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
-    "askByDefault": true,
-    "allowNewScopes": true
-  }
-}
+```mermaid
+flowchart TD
+  A[gitsmith] --> B{commit-part flags?}
+  B -- yes --> F[no-prompt mode: validate and commit]
+  B -- no --> C{--no-ai?}
+  C -- yes --> G[guided prompts]
+  C -- no --> D[agent]
+  D --> E{something staged?}
+  E -- no --> E2[offer to stage all / --all]
+  E -- yes --> H{AI on and key found?}
+  E2 --> H
+  H -- no --> G
+  H -- yes --> I[read staged diff]
+  I --> J[AI suggests type, scope, message]
+  J --> K{passes the rules?}
+  K -- no, retry up to 3x --> J
+  K -- yes --> L{approve?}
+  L -- Commit --> M[git commit]
+  L -- Edit --> G
+  L -- Regenerate --> J
+  L -- Cancel --> N[stop, staged changes kept]
 ```
 
-### Key management
+One rule engine (`src/validate/message.js`) serves every path: the agent, the guided prompts, no-prompt mode, `check` and the hook. That's why they always agree about what is valid.
 
-| Command                  | Purpose                         |
-| ------------------------ | ------------------------------- |
-| `gitsmith key:set`       | Prompt and save key             |
-| `gitsmith key:set <key>` | Save key non-interactively      |
-| `gitsmith key:show`      | Show masked key                 |
-| `gitsmith key:remove`    | Remove key after confirmation   |
-| `gitsmith key:reset`     | Alias for `key:remove`          |
-| `gitsmith key:status`    | Show provider/source/saved time |
-
-### CI and scripting
-
-Set `GITSMITH_AI_KEY` in the environment. It overrides the saved local file.
-
-### Privacy note
-
-Only the free-text description entered by the user is sent to AI. Source code and git diffs are not sent.
-
-### AI flags
-
-- `gitsmith --ai`: force AI prompt for this run
-- `gitsmith --no-ai`: skip AI prompt for this run
-
-## Local Development
+## Development
 
 ```bash
+git clone https://github.com/chapeee/gitsmith.git
+cd gitsmith
 npm install
-npm link
+npm link            # makes your local copy the global `gitsmith`
 ```
 
-Now test in any git repo:
+Run the checks:
 
 ```bash
-gitsmith init
-git add .
-gitsmith
+npm run lint        # syntax check of every source file
+npm test            # unit and end-to-end tests (node --test)
 ```
 
-## Publish Checklist
+The end-to-end tests in [`test/e2e-agent.test.js`](./test/e2e-agent.test.js) run the real CLI the way an AI agent would (no terminal) in throwaway git repos. They cover no-prompt commits, `check`, the hook and `agents`. The agent itself is tested against a local fake AI server, so no API key or network is needed.
 
-- Set final npm package name in `package.json`
-- Ensure version is correct (first release: `0.1.0`)
-- Run:
+Commits in this repo use gitsmith itself:
+
+```bash
+gitsmith            # or: gitsmith -t <type> -s <scope> -m "<message>"
+```
+
+### Publishing
 
 ```bash
 npm run lint
+npm test
+npm version <patch|minor|major>
 npm publish
 ```
 
-## Open Source
+## Roadmap
 
-- License: MIT
+- **Done:** agent by default; no-prompt mode; `check`, `rules`, `hook` and `agents`; strict scopes; message style; co-author and author flags; staged-diff context
+- **Next:** an MCP server so agents can call gitsmith as a tool; `gitsmith push` to check unpushed commits before pushing; commit bodies written by the agent; splitting a large change into several commits
+
+Ideas and pull requests are welcome.
+
+## AI contributors
+
+Parts of gitsmith are written with [Claude](https://claude.com) (Anthropic). Claude-assisted commits carry a `Co-Authored-By: Claude` trailer, which is why Claude appears among the repo's contributors. Every change is reviewed and merged by [@chapeee](https://github.com/chapeee). Weekly maintenance runs open pull requests for review; they are never merged automatically.
+
+## Open source
+
+- License: [MIT](./LICENSE)
 - Contributions welcome via pull requests
-- See `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
+- See [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
