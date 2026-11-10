@@ -120,7 +120,7 @@ export function buildCommitBody(body, coAuthors) {
  * Creates a git commit with the provided header, optional body, co-authors and author.
  * The committer stays whoever is configured in git; `author` only changes the author.
  * @param {string} message
- * @param {{body?: string, coAuthors?: string[], author?: string}} [options]
+ * @param {{body?: string, coAuthors?: string[], author?: string, paths?: string[]}} [options]
  * @returns {Promise<{output: string, hash: string | null}>}
  */
 export async function createCommit(message, options = {}) {
@@ -132,10 +132,68 @@ export async function createCommit(message, options = {}) {
   if (options.author) {
     args.push(`--author=${options.author}`);
   }
+  const paths = options.paths ?? [];
+  if (paths.length > 0) {
+    // Stage new files too, then commit exactly these paths; anything else staged stays staged.
+    await execa("git", ["add", "--", ...paths]);
+    args.push("--", ...paths);
+  }
   const { stdout } = await execa("git", args);
   const hashMatch = stdout.match(/\[[^\]]+\s([a-f0-9]{7,40})\]/i);
   return {
     output: stdout,
     hash: hashMatch?.[1] ?? null
   };
+}
+
+/**
+ * Structured working-tree status for agents: branch, staged / unstaged / untracked
+ * files with git's status letter, and the latest commit subjects (to match their style).
+ * @returns {Promise<{branch: string, staged: {path: string, status: string}[],
+ *   unstaged: {path: string, status: string}[], untracked: string[], recentCommits: string[]}>}
+ */
+export async function getRepoStatus() {
+  const { stdout: branchOut } = await execa("git", ["symbolic-ref", "--short", "-q", "HEAD"], { reject: false });
+  const { stdout } = await execa("git", ["status", "--porcelain=v1", "--untracked-files=all"]);
+
+  const staged = [];
+  const unstaged = [];
+  const untracked = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    const x = line[0];
+    const y = line[1];
+    // Renames look like "old -> new"; agents act on the new path.
+    const filePath = line.slice(3).split(" -> ").pop().trim();
+    if (x === "?" && y === "?") {
+      untracked.push(filePath);
+      continue;
+    }
+    if (x !== " ") staged.push({ path: filePath, status: x });
+    if (y !== " ") unstaged.push({ path: filePath, status: y });
+  }
+
+  const log = await execa("git", ["log", "-5", "--format=%s"], { reject: false });
+  const recentCommits = log.exitCode === 0 ? log.stdout.split("\n").filter(Boolean) : [];
+
+  return { branch: branchOut.trim() || "(detached)", staged, unstaged, untracked, recentCommits };
+}
+
+/**
+ * Diff for agents: staged changes, or for specific paths (staged or not).
+ * @param {{paths?: string[], maxChars?: number}} [options]
+ */
+export async function getDiffForPaths(options = {}) {
+  const paths = options.paths ?? [];
+  if (paths.length === 0) {
+    return getStagedDiff({ maxChars: options.maxChars });
+  }
+  const maxChars = options.maxChars ?? 12000;
+  // HEAD may not exist yet in a new repo; fall back to the index.
+  const hasHead = (await execa("git", ["rev-parse", "--verify", "-q", "HEAD"], { reject: false })).exitCode === 0;
+  const base = hasHead ? ["HEAD"] : ["--cached"];
+  const { stdout: stat } = await execa("git", ["diff", ...base, "--stat", "--", ...paths]);
+  const { stdout: diff } = await execa("git", ["diff", ...base, "--no-color", "-U2", "--", ...paths]);
+  const truncated = diff.length > maxChars;
+  return { stat: stat.trim(), diff: truncated ? `${diff.slice(0, maxChars)}\n[diff truncated]` : diff, truncated };
 }

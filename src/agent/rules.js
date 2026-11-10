@@ -88,8 +88,11 @@ export function renderRulesMarkdown(config) {
     rules.commands.commit,
     "```",
     "",
-    "Add `--body \"...\"` for a body, `--dry-run --json` to preview, and `--json` for machine-readable output.",
-    'Check a message before committing with `gitsmith check "<header>"`. Run `gitsmith rules --json` for these rules as JSON.'
+    "Add `--body \"...\"` for a body, `--files <paths...>` to commit only some paths, `--dry-run --json` to preview, and `--json` for machine-readable output.",
+    'Check a message before committing with `gitsmith check "<header>"`. Run `gitsmith rules --json` for these rules as JSON.',
+    "",
+    "If your agent supports MCP, prefer the `gitsmith` MCP server (`gitsmith mcp`): its `get_rules`, `get_status`, `get_diff`, `check_message` and `commit` tools do the same with structured results.",
+    "Never bypass a rejected commit with `git commit --no-verify`; fix the message instead."
   );
 
   return lines.join("\n");
