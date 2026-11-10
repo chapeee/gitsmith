@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { findUp } from "find-up";
-import { CONFIG_FILE_NAME } from "./default.js";
+import { CONFIG_FILE_NAME, LOCAL_CONFIG_FILE_NAME } from "./default.js";
+import { ConfigResolveError, resolveConfig } from "./resolve.js";
 import { validateConfig } from "./schema.js";
 
 const aiDefaults = {
@@ -74,6 +76,38 @@ export async function loadValidatedConfig() {
     throw new Error(`Invalid JSON in ${CONFIG_FILE_NAME}: ${message}`);
   }
 
-  const config = withAiDefaults(validateConfig(json));
-  return { config, configPath };
+  const localJson = await readLocalConfig(configPath);
+  let resolved;
+  try {
+    resolved = await resolveConfig(json, { configPath, localJson });
+  } catch (error) {
+    if (error instanceof ConfigResolveError) {
+      throw new Error(`${CONFIG_FILE_NAME}: ${error.message}`);
+    }
+    throw error;
+  }
+
+  const config = withAiDefaults(validateConfig(resolved.config));
+  return { config, configPath, sources: resolved.sources, chain: resolved.chain, warnings: resolved.warnings };
+}
+
+/**
+ * Reads the optional personal .commitconfig.local.json next to the project config.
+ * @param {string} configPath
+ * @returns {Promise<object | null>}
+ */
+async function readLocalConfig(configPath) {
+  const localPath = path.join(path.dirname(configPath), LOCAL_CONFIG_FILE_NAME);
+  let raw;
+  try {
+    raw = await readFile(localPath, "utf8");
+  } catch {
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid JSON in ${LOCAL_CONFIG_FILE_NAME}: ${message}`);
+  }
 }

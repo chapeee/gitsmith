@@ -8,18 +8,16 @@ import {
 import { loadValidatedConfig } from "../config/loader.js";
 import { askConfirm, askText, collectCommitData } from "../prompt/builder.js";
 import {
-  buildCommitBody,
   createCommit,
   ensureInsideGitRepo,
   ensureStagedFiles,
-  getStagedFiles,
   isValidPerson
 } from "../git/executor.js";
-import { buildAndValidate, exampleHeader } from "../validate/message.js";
-import { describeRules } from "../agent/rules.js";
+import { buildAndValidate } from "../validate/message.js";
 import { CredentialsReadError } from "../ai/credentials.js";
 import { resolveApiKeyWithoutPrompt } from "./key.js";
 import { withSpinner } from "../ui/spinner.js";
+import { performCommit } from "../core/commit.js";
 
 export function mapAiErrorToMessage(error) {
   if (error instanceof CredentialsReadError) {
@@ -156,7 +154,7 @@ async function tryAiFlow(config, commandOptions) {
   };
 }
 
-const COMMIT_FLAG_KEYS = ["type", "scope", "ticket", "message", "breaking", "body"];
+const COMMIT_FLAG_KEYS = ["type", "scope", "ticket", "message", "breaking", "body", "files"];
 
 /**
  * True when any commit part was passed as a flag, which switches to the no-prompt flow.
@@ -199,94 +197,40 @@ function printJson(value) {
  * @param {object} options
  */
 export async function runFlagsCommit(options) {
-  const json = Boolean(options.json);
-  const log = (text) => {
-    if (!json) console.log(text);
-  };
+  const result = await performCommit({
+    type: options.type,
+    scope: options.scope,
+    message: options.message,
+    ticket: options.ticket,
+    breaking: options.breaking,
+    body: options.body,
+    coAuthors: options.coAuthor,
+    author: options.author,
+    files: options.files,
+    dryRun: options.dryRun
+  });
 
-  const fail = (errors, extra = {}) => {
-    if (json) {
-      printJson({ ok: false, errors, ...extra });
+  if (options.json) {
+    const { hint: _hint, ...output } = result;
+    printJson({ ...output, author: options.author ?? null });
+  } else if (result.ok) {
+    for (const warning of result.warnings) console.log(pc.yellow(`Warning: ${warning}`));
+    if (result.dryRun) {
+      console.log(`${pc.cyan("Dry run, nothing committed:")} ${pc.bold(result.header)}`);
     } else {
-      for (const error of errors) {
-        console.error(pc.red(`Error: ${error}`));
-      }
-      if (extra.usage) {
-        console.error(pc.cyan(`Usage: ${extra.usage}`));
-        console.error(pc.cyan(`Example header: ${extra.example}`));
-        console.error(pc.cyan('Run "gitsmith rules" to see every allowed value.'));
-      }
+      const hashText = result.hash ? ` ${pc.cyan(result.hash)}` : "";
+      console.log(pc.green(`Committed:${hashText} ${result.header}`));
     }
-    process.exitCode = 1;
-  };
-
-  let config;
-  try {
-    await ensureInsideGitRepo();
-    ({ config } = await loadValidatedConfig());
-  } catch (error) {
-    fail([error instanceof Error ? error.message : String(error)]);
-    return;
-  }
-
-  const result = buildAndValidate(options, config);
-  result.errors.push(...validatePeople(options));
-  const body = buildCommitBody(options.body, options.coAuthor);
-  if (result.errors.length > 0) {
-    fail(result.errors, {
-      header: result.header,
-      example: exampleHeader(config),
-      usage: describeRules(config).commands.commit
-    });
-    return;
-  }
-
-  let files;
-  try {
-    // A dry run only previews the header, so it works before anything is staged.
-    if (!options.dryRun) {
-      await ensureStagedFiles();
-    }
-    files = await getStagedFiles();
-  } catch (error) {
-    fail([error instanceof Error ? error.message : String(error)], { header: result.header });
-    return;
-  }
-
-  for (const warning of result.warnings) {
-    log(pc.yellow(`Warning: ${warning}`));
-  }
-
-  if (options.dryRun) {
-    if (json) {
-      printJson({ ok: true, dryRun: true, header: result.header, body, author: options.author ?? null, files, warnings: result.warnings });
-    } else {
-      log(`${pc.cyan("Dry run, nothing committed:")} ${pc.bold(result.header)}`);
-    }
-    return;
-  }
-
-  let commit;
-  try {
-    commit = await createCommit(result.header, {
-      body: options.body,
-      coAuthors: options.coAuthor,
-      author: options.author
-    });
-  } catch (error) {
-    // Hooks or git itself rejected the commit; surface git's own output.
-    const e = /** @type {{stderr?: string, stdout?: string, message?: string}} */ (error);
-    const detail = (e.stderr || e.stdout || e.message || "git commit failed").trim();
-    fail([detail], { header: result.header });
-    return;
-  }
-
-  if (json) {
-    printJson({ ok: true, hash: commit.hash, header: result.header, body, author: options.author ?? null, files, warnings: result.warnings });
   } else {
-    const hashText = commit.hash ? ` ${pc.cyan(commit.hash)}` : "";
-    log(pc.green(`Committed:${hashText} ${result.header}`));
+    for (const error of result.errors) console.error(pc.red(`Error: ${error}`));
+    if (result.hint) {
+      console.error(pc.cyan(`Usage: ${result.hint.usage}`));
+      console.error(pc.cyan(`Example header: ${result.hint.example}`));
+      console.error(pc.cyan("Run \"gitsmith rules\" to see every allowed value."));
+    }
   }
+
+  if (!result.ok) process.exitCode = 1;
 }
 
 /**

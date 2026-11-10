@@ -7,7 +7,7 @@ import { runAgentCommand } from "./commands/agent.js";
 import { hasCommitFlags, runCommitCommand, runFlagsCommit } from "./commands/commit.js";
 import { runHookInstallCommand, runHookUninstallCommand } from "./commands/hook.js";
 import { runInitCommand } from "./commands/init.js";
-import { runRulesCommand } from "./commands/rules.js";
+import { runRulesCommand, runRulesExportCommand } from "./commands/rules.js";
 
 const pkg = createRequire(import.meta.url)("../package.json");
 
@@ -28,6 +28,7 @@ function addCommitPartOptions(command) {
     .option("--body <body>", "Commit body (no-prompt mode)")
     .option("--co-author <person>", 'Add a Co-Authored-By trailer, "Name <email>" (repeatable)', collect)
     .option("--author <person>", 'Set the commit author, "Name <email>"; you stay the committer')
+    .option("--files <paths...>", "Commit only these paths (new files included); other staged changes stay staged")
     .option("--dry-run", "Validate and show the header without committing")
     .option("--json", "Print the result as JSON (no-prompt mode)");
 }
@@ -52,8 +53,9 @@ export function runCli() {
 
   program
     .command("init")
-    .description("Create a default .commitconfig.json in the current directory")
+    .description("Create .commitconfig.json (default rules, or extend shared ones with --from)")
     .option("-f, --force", "Overwrite existing config file")
+    .option("--from <rules>", "Extend shared rules: gitsmith:<preset>, a file, a URL or an npm package")
     .action(async (options) => {
       await runInitCommand(options);
     });
@@ -102,8 +104,15 @@ export function runCli() {
     .command("rules")
     .description("Print the commit rules for this repo (for people and AI agents)")
     .option("--json", "Print the rules as JSON")
+    .option("--resolved", "Show the extends chain and which file set each rule")
     .action(async (options) => {
       await runRulesCommand(options);
+    })
+    .command("export")
+    .description("Write the resolved rules as one shareable JSON file")
+    .option("-o, --out <file>", "Write to this file instead of printing")
+    .action(async (options) => {
+      await runRulesExportCommand(options);
     });
 
   const hook = program.command("hook").description("Manage the commit-msg git hook");
@@ -123,10 +132,20 @@ export function runCli() {
 
   program
     .command("agents")
-    .description("Write the commit rules into AGENTS.md (or other agent instruction files)")
+    .description("Set up AI agents: write the commit rules into AGENTS.md, and with --mcp register the gitsmith MCP server")
     .option("--file <path...>", "Target file(s), e.g. AGENTS.md CLAUDE.md .cursorrules")
+    .option("--mcp", "Also add gitsmith to the project's .mcp.json (Claude Code, Cursor and other MCP clients)")
     .action(async (options) => {
       await runAgentsCommand(options);
+    });
+
+  program
+    .command("mcp")
+    .description("Run the gitsmith MCP server over stdio, so AI agents can call gitsmith as tools")
+    .action(async () => {
+      // Loaded on demand so other commands don't pay for the MCP SDK at startup.
+      const { runMcpServer } = await import("./mcp/server.js");
+      await runMcpServer();
     });
 
   program

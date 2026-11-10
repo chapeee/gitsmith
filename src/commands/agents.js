@@ -53,4 +53,33 @@ export async function runAgentsCommand(options = {}) {
     await writeFile(filePath, upsertSection(existing, section), "utf8");
     console.log(pc.green(`${existing === null ? "Created" : "Updated"} commit rules in ${filePath}`));
   }
+
+  if (options.mcp) {
+    const mcpPath = path.join(root, ".mcp.json");
+    let existing = null;
+    try {
+      existing = JSON.parse(await readFile(mcpPath, "utf8"));
+    } catch (error) {
+      if (/** @type {NodeJS.ErrnoException} */ (error).code !== "ENOENT") {
+        throw new Error(`Could not update ${mcpPath}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+    await writeFile(mcpPath, `${JSON.stringify(withGitsmithServer(existing), null, 2)}\n`, "utf8");
+    console.log(pc.green(`Registered the gitsmith MCP server in ${mcpPath}`));
+    console.log(pc.cyan("Claude Code, Cursor and other MCP clients that read .mcp.json now get gitsmith tools for this project."));
+  }
+}
+
+export const MCP_SERVER_ENTRY = { command: "npx", args: ["-y", "gitsmith", "mcp"] };
+
+/**
+ * Adds (or refreshes) the gitsmith entry in an .mcp.json object, keeping other servers.
+ * @param {object | null} existing
+ */
+export function withGitsmithServer(existing) {
+  const config = existing && typeof existing === "object" ? existing : {};
+  return {
+    ...config,
+    mcpServers: { ...(config.mcpServers ?? {}), gitsmith: MCP_SERVER_ENTRY }
+  };
 }
