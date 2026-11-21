@@ -48,6 +48,7 @@ export async function getHooksDir() {
 
 /**
  * Lists every changed path (staged, unstaged and untracked).
+ * Renames are listed by their new path, as in getRepoStatus.
  * @returns {Promise<string[]>}
  */
 export async function getChangedFiles() {
@@ -55,7 +56,7 @@ export async function getChangedFiles() {
   return stdout
     .split("\n")
     .filter((line) => line.trim().length > 0)
-    .map((line) => line.slice(3).trim());
+    .map((line) => line.slice(3).split(" -> ").pop().trim());
 }
 
 /**

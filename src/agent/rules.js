@@ -67,7 +67,11 @@ export function renderRulesMarkdown(config) {
     lines.push(`- **ticket**: ${rules.ticket.prefix ? `starts with \`${rules.ticket.prefix}\`` : "optional"}`);
   }
   if (rules.breaking.used) {
-    lines.push("- **breaking change**: pass `--breaking` (adds `!`)");
+    lines.push(
+      rules.format.includes("{breaking}")
+        ? "- **breaking change**: pass `--breaking` (adds `!`)"
+        : "- **breaking change**: the format has no `{breaking}` token, so `--breaking` adds no `!`; describe it in the body"
+    );
   }
   lines.push(
     rules.messageStyle === "off"

@@ -95,6 +95,16 @@ test("buildAndValidate adds the breaking marker", () => {
   assert.equal(buildAndValidate({ type: "fix", scope: "ui", message: "drop x", breaking: true }, config).header, "fix(ui)!: drop x");
 });
 
+test("buildAndValidate warns when the format cannot mark a breaking change", () => {
+  const noMarker = { ...config, format: "{type}({scope}): {message}" };
+  const result = buildAndValidate({ type: "fix", scope: "ui", message: "drop x", breaking: true }, noMarker);
+  assert.equal(result.ok, true);
+  assert.equal(result.header, "fix(ui): drop x");
+  assert.match(result.warnings.join(), /no \{breaking\} token/);
+  assert.deepEqual(buildAndValidate({ type: "fix", scope: "ui", message: "drop x", breaking: true }, config).warnings, []);
+  assert.deepEqual(buildAndValidate({ type: "fix", scope: "ui", message: "drop x" }, noMarker).warnings, []);
+});
+
 test("buildAndValidate reports missing type and message", () => {
   const result = buildAndValidate({ scope: "api" }, config);
   assert.equal(result.ok, false);
@@ -134,4 +144,11 @@ test("messageStyle off disables the style check", () => {
 
 test("messageStyleErrors is empty for a conventional summary", () => {
   assert.deepEqual(messageStyleErrors("add retry logic", config), []);
+});
+
+test("messageStyleErrors flags a capitalized one-letter first word but allows acronyms", () => {
+  assert.equal(messageStyleErrors("A new endpoint", config).length, 1);
+  assert.equal(messageStyleErrors("X", config).length, 1);
+  assert.deepEqual(messageStyleErrors("API now retries", config), []);
+  assert.deepEqual(messageStyleErrors("a new endpoint", config), []);
 });

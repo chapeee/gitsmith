@@ -1,4 +1,4 @@
-<!-- gitsmith:start hash=5f9e3b4a137b -->
+<!-- gitsmith:start hash=73148bccc1db -->
 <!-- Managed by gitsmith (`gitsmith agents`). Keep your own notes outside these markers. If you edit inside, gitsmith keeps your version and stops updating this section until you run `gitsmith agents --force`. -->
 ## Commit messages
 
@@ -10,7 +10,7 @@ This repo uses [gitsmith](https://www.npmjs.com/package/gitsmith). Every commit 
 
 - **type** (required): `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `style`
 - **scope** (required, must be from the list): `auth`, `ui`, `api`, `db`, `config`
-- **breaking change**: pass `--breaking` (adds `!`)
+- **breaking change**: the format has no `{breaking}` token, so `--breaking` adds no `!`; describe it in the body
 - **message**: imperative mood, starts lowercase, no trailing period (enforced)
 - **header length**: at most 72 characters
 

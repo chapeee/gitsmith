@@ -93,7 +93,8 @@ export function messageStyleErrors(message, config) {
   }
   const text = String(message ?? "").trim();
   const errors = [];
-  if (/^[A-Z][a-z]/.test(text)) {
+  // A capital followed by a lowercase letter, a space or nothing; "API ..." stays allowed.
+  if (/^[A-Z](?:[a-z]|\s|$)/.test(text)) {
     errors.push(`message must start with a lowercase letter: "${text[0].toLowerCase()}${text.slice(1)}".`);
   }
   if (/\.$/.test(text)) {
@@ -206,6 +207,13 @@ export function buildAndValidate(input, config) {
   const lengthWarning = headerLengthWarning(header, config);
   if (lengthWarning) {
     warnings.push(lengthWarning);
+  }
+
+  // Without a {breaking} token the "!" has nowhere to go, so say so instead of dropping it silently.
+  if (parts.breaking && config.askBreaking && !config.format.includes("{breaking}")) {
+    warnings.push(
+      `breaking change is not marked: the format "${config.format}" has no {breaking} token. Add it (e.g. "{type}({scope}){breaking}: {message}") to get the "!".`
+    );
   }
 
   return { ok: errors.length === 0, header, parts, errors, warnings };
