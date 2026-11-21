@@ -145,3 +145,10 @@ test("messageStyle off disables the style check", () => {
 test("messageStyleErrors is empty for a conventional summary", () => {
   assert.deepEqual(messageStyleErrors("add retry logic", config), []);
 });
+
+test("messageStyleErrors flags a capitalized one-letter first word but allows acronyms", () => {
+  assert.equal(messageStyleErrors("A new endpoint", config).length, 1);
+  assert.equal(messageStyleErrors("X", config).length, 1);
+  assert.deepEqual(messageStyleErrors("API now retries", config), []);
+  assert.deepEqual(messageStyleErrors("a new endpoint", config), []);
+});

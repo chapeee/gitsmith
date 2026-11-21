@@ -93,7 +93,8 @@ export function messageStyleErrors(message, config) {
   }
   const text = String(message ?? "").trim();
   const errors = [];
-  if (/^[A-Z][a-z]/.test(text)) {
+  // A capital followed by a lowercase letter, a space or nothing; "API ..." stays allowed.
+  if (/^[A-Z](?:[a-z]|\s|$)/.test(text)) {
     errors.push(`message must start with a lowercase letter: "${text[0].toLowerCase()}${text.slice(1)}".`);
   }
   if (/\.$/.test(text)) {
