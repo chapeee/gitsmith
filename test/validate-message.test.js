@@ -138,6 +138,13 @@ test("message style allows acronyms at the start", () => {
   assert.equal(checkCommitMessage("feat(api): API keys can rotate", config).ok, true);
 });
 
+test("message style rejects a one-letter capitalised word at the start", () => {
+  assert.match(messageStyleErrors("A new retry policy", config)[0], /lowercase letter: "a new retry policy"/);
+  assert.equal(messageStyleErrors("I", config).length, 1);
+  assert.deepEqual(messageStyleErrors("X11 forwarding works again", config), []);
+  assert.deepEqual(messageStyleErrors("A/B test the banner", config), []);
+});
+
 test("messageStyle off disables the style check", () => {
   assert.equal(checkCommitMessage("feat(api): Add checks.", { ...config, messageStyle: "off" }).ok, true);
 });
