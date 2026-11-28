@@ -93,7 +93,9 @@ export function messageStyleErrors(message, config) {
   }
   const text = String(message ?? "").trim();
   const errors = [];
-  if (/^[A-Z][a-z]/.test(text)) {
+  // A capital followed by lowercase ("Add") or a one-letter word ("A fix") is a sentence start;
+  // two or more capitals ("API") or a capital and a digit ("X11") read as an acronym.
+  if (/^[A-Z](?:[a-z]|\s|$)/.test(text)) {
     errors.push(`message must start with a lowercase letter: "${text[0].toLowerCase()}${text.slice(1)}".`);
   }
   if (/\.$/.test(text)) {
@@ -187,6 +189,20 @@ function headerLengthWarning(header, config) {
 }
 
 /**
+ * A breaking change only shows up in the header when the format has {breaking};
+ * without it the marker would be dropped silently, so say so.
+ * @param {boolean | undefined} breaking
+ * @param {object} config
+ * @returns {string | null}
+ */
+export function breakingMarkerWarning(breaking, config) {
+  if (breaking && config.askBreaking && !config.format.includes("{breaking}")) {
+    return `breaking change is not marked in the header: the format "${config.format}" has no {breaking} token. Add {breaking} (e.g. "{type}({scope}){breaking}: {message}") to get "!".`;
+  }
+  return null;
+}
+
+/**
  * Builds a header from parts and validates it. Used by flags mode and the AI flow.
  * @param {{type?: string, scope?: string, ticket?: string, message?: string, breaking?: boolean}} input
  * @param {object} config
@@ -206,6 +222,11 @@ export function buildAndValidate(input, config) {
   const lengthWarning = headerLengthWarning(header, config);
   if (lengthWarning) {
     warnings.push(lengthWarning);
+  }
+
+  const breakingWarning = breakingMarkerWarning(parts.breaking, config);
+  if (breakingWarning) {
+    warnings.push(breakingWarning);
   }
 
   return { ok: errors.length === 0, header, parts, errors, warnings };

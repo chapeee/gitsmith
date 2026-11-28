@@ -70,10 +70,13 @@ export async function loadValidatedConfig() {
 
   let json;
   try {
-    json = JSON.parse(raw);
+    json = JSON.parse(stripBom(raw));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Invalid JSON in ${CONFIG_FILE_NAME}: ${message}`);
+  }
+  if (!isPlainObject(json)) {
+    throw new Error(`${CONFIG_FILE_NAME} must contain a JSON object, like the one "gitsmith init" creates.`);
   }
 
   const localJson = await readLocalConfig(configPath);
@@ -104,10 +107,24 @@ async function readLocalConfig(configPath) {
   } catch {
     return null;
   }
+  let json;
   try {
-    return JSON.parse(raw);
+    json = JSON.parse(stripBom(raw));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Invalid JSON in ${LOCAL_CONFIG_FILE_NAME}: ${message}`);
   }
+  if (!isPlainObject(json)) {
+    throw new Error(`${LOCAL_CONFIG_FILE_NAME} must contain a JSON object.`);
+  }
+  return json;
+}
+
+// Some Windows editors save UTF-8 with a byte order mark, which JSON.parse rejects.
+function stripBom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

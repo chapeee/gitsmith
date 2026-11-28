@@ -95,6 +95,16 @@ test("buildAndValidate adds the breaking marker", () => {
   assert.equal(buildAndValidate({ type: "fix", scope: "ui", message: "drop x", breaking: true }, config).header, "fix(ui)!: drop x");
 });
 
+test("buildAndValidate warns when the format cannot show a breaking change", () => {
+  const plain = { ...config, format: "{type}({scope}): {message}" };
+  const result = buildAndValidate({ type: "fix", scope: "ui", message: "drop x", breaking: true }, plain);
+  assert.equal(result.ok, true);
+  assert.equal(result.header, "fix(ui): drop x");
+  assert.match(result.warnings.join(), /no \{breaking\} token/);
+  assert.deepEqual(buildAndValidate({ type: "fix", scope: "ui", message: "drop x", breaking: true }, config).warnings, []);
+  assert.deepEqual(buildAndValidate({ type: "fix", scope: "ui", message: "drop x" }, plain).warnings, []);
+});
+
 test("buildAndValidate reports missing type and message", () => {
   const result = buildAndValidate({ scope: "api" }, config);
   assert.equal(result.ok, false);
@@ -126,6 +136,13 @@ test("message style rejects a capitalised start and a trailing period", () => {
 
 test("message style allows acronyms at the start", () => {
   assert.equal(checkCommitMessage("feat(api): API keys can rotate", config).ok, true);
+});
+
+test("message style rejects a one-letter capitalised word at the start", () => {
+  assert.match(messageStyleErrors("A new retry policy", config)[0], /lowercase letter: "a new retry policy"/);
+  assert.equal(messageStyleErrors("I", config).length, 1);
+  assert.deepEqual(messageStyleErrors("X11 forwarding works again", config), []);
+  assert.deepEqual(messageStyleErrors("A/B test the banner", config), []);
 });
 
 test("messageStyle off disables the style check", () => {

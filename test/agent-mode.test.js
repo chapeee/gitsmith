@@ -35,6 +35,12 @@ test("renderRulesMarkdown lists types, scopes and the command", () => {
   assert.match(markdown, /gitsmith -t feat -s api/);
 });
 
+test("renderRulesMarkdown says whether --breaking adds the marker", () => {
+  assert.match(renderRulesMarkdown(config), /no `\{breaking\}` token, so no `!` is added/);
+  const withMarker = renderRulesMarkdown({ ...config, format: "{type}({scope}){breaking}: {message}" });
+  assert.match(withMarker, /pass `--breaking` \(adds `!`\)/);
+});
+
 test("hook script is marked and calls gitsmith check with the message file", () => {
   assert.ok(HOOK_SCRIPT.startsWith("#!/bin/sh"));
   assert.ok(HOOK_SCRIPT.includes(HOOK_MARKER));

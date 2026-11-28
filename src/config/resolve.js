@@ -56,7 +56,8 @@ export function mergeConfigs(base, override, label, sources = {}, prefix = "") {
 
 function parseJson(raw, label) {
   try {
-    const parsed = JSON.parse(raw);
+    // Tolerate a UTF-8 byte order mark, as some Windows editors write one.
+    const parsed = JSON.parse(raw.replace(/^\uFEFF/, ""));
     if (!isPlainObject(parsed)) throw new Error("not a JSON object");
     return parsed;
   } catch (error) {
