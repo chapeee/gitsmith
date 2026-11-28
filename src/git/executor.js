@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { execa } from "execa";
 
 /**
@@ -47,15 +48,47 @@ export async function getHooksDir() {
 }
 
 /**
- * Lists every changed path (staged, unstaged and untracked).
+ * Lists every changed path (staged, unstaged and untracked). Renames are listed by
+ * their new path; with `includeRenameSources` the old path is listed too.
+ * @param {{includeRenameSources?: boolean}} [options]
  * @returns {Promise<string[]>}
  */
-export async function getChangedFiles() {
-  const { stdout } = await execa("git", ["status", "--porcelain", "--untracked-files=all"]);
-  return stdout
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .map((line) => line.slice(3).trim());
+export async function getChangedFiles(options = {}) {
+  const entries = await readPorcelainStatus();
+  return entries.flatMap((entry) =>
+    options.includeRenameSources && entry.from ? [entry.path, entry.from] : [entry.path]
+  );
+}
+
+/**
+ * Parses `git status --porcelain=v1 -z`. NUL-separated output keeps paths unquoted
+ * (spaces, non-ASCII) and lists a rename as the new path followed by the old one.
+ * @param {string} stdout
+ * @returns {{x: string, y: string, path: string, from?: string}[]}
+ */
+export function parsePorcelainZ(stdout) {
+  const fields = stdout.split("\0");
+  const entries = [];
+  for (let i = 0; i < fields.length; i += 1) {
+    const field = fields[i];
+    if (field.length < 4) continue;
+    const x = field[0];
+    const y = field[1];
+    const entry = { x, y, path: field.slice(3) };
+    if (x === "R" || x === "C" || y === "R" || y === "C") {
+      entry.from = fields[i + 1];
+      i += 1;
+    }
+    entries.push(entry);
+  }
+  return entries;
+}
+
+async function readPorcelainStatus() {
+  const { stdout } = await execa("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
+    stripFinalNewline: false
+  });
+  return parsePorcelainZ(stdout);
 }
 
 /**
@@ -135,7 +168,12 @@ export async function createCommit(message, options = {}) {
   const paths = options.paths ?? [];
   if (paths.length > 0) {
     // Stage new files too, then commit exactly these paths; anything else staged stays staged.
-    await execa("git", ["add", "--", ...paths]);
+    // Paths gone from disk (deletions, the old side of a rename) need no add, and
+    // `git add` would reject the ones already removed from the index.
+    const present = paths.filter((file) => existsSync(file));
+    if (present.length > 0) {
+      await execa("git", ["add", "--", ...present]);
+    }
     args.push("--", ...paths);
   }
   const { stdout } = await execa("git", args);
@@ -154,17 +192,13 @@ export async function createCommit(message, options = {}) {
  */
 export async function getRepoStatus() {
   const { stdout: branchOut } = await execa("git", ["symbolic-ref", "--short", "-q", "HEAD"], { reject: false });
-  const { stdout } = await execa("git", ["status", "--porcelain=v1", "--untracked-files=all"]);
+  const entries = await readPorcelainStatus();
 
   const staged = [];
   const unstaged = [];
   const untracked = [];
-  for (const line of stdout.split("\n")) {
-    if (!line.trim()) continue;
-    const x = line[0];
-    const y = line[1];
-    // Renames look like "old -> new"; agents act on the new path.
-    const filePath = line.slice(3).split(" -> ").pop().trim();
+  // Renames are reported by their new path, which is what agents act on.
+  for (const { x, y, path: filePath } of entries) {
     if (x === "?" && y === "?") {
       untracked.push(filePath);
       continue;

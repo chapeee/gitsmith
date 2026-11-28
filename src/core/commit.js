@@ -70,7 +70,7 @@ export async function performCommit(input) {
   let files;
   try {
     if (requested.length > 0) {
-      const changed = new Set(await getChangedFiles());
+      const changed = new Set(await getChangedFiles({ includeRenameSources: true }));
       const unknown = requested.filter((file) => !changed.has(file.replace(/\\/g, "/")));
       if (unknown.length > 0) {
         return {
