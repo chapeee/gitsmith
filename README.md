@@ -276,7 +276,7 @@ Options for committing:
 | `-s, --scope <scope>` | Scope; required when `scopes` is set |
 | `-m, --message <msg>` | Summary |
 | `--ticket <id>` | Ticket id; `ticketPrefix` is added if missing |
-| `-b, --breaking` | Breaking change; adds `!` |
+| `-b, --breaking` | Breaking change; adds `!` when the format has `{breaking}` (otherwise warns) |
 | `--body <text>` | Commit body |
 | `--co-author <person>` | Adds `Co-Authored-By: <person>`; repeatable; format `"Name <email>"` |
 | `--author <person>` | Sets the commit author; you stay the committer |

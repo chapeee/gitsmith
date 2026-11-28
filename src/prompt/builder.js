@@ -1,7 +1,7 @@
 import enquirer from "enquirer";
 import pc from "picocolors";
 import { buildCommitMessage } from "../format/template.js";
-import { messageStyleErrors } from "../validate/message.js";
+import { breakingMarkerWarning, messageStyleErrors } from "../validate/message.js";
 
 const { prompt } = enquirer;
 // Reserved sentinel value used to detect custom scope selection.
@@ -175,6 +175,11 @@ export async function collectCommitData(config, options = {}) {
         `Warning: commit header is ${commitMessage.length} characters (limit: ${headerLimit}).`
       )
     );
+  }
+
+  const breakingWarning = breakingMarkerWarning(breaking, config);
+  if (breakingWarning) {
+    console.log(pc.yellow(`Warning: ${breakingWarning}`));
   }
 
   console.log(`\n${pc.cyan("Preview:")} ${pc.bold(commitMessage)}\n`);

@@ -187,6 +187,20 @@ function headerLengthWarning(header, config) {
 }
 
 /**
+ * A breaking change only shows up in the header when the format has {breaking};
+ * without it the marker would be dropped silently, so say so.
+ * @param {boolean | undefined} breaking
+ * @param {object} config
+ * @returns {string | null}
+ */
+export function breakingMarkerWarning(breaking, config) {
+  if (breaking && config.askBreaking && !config.format.includes("{breaking}")) {
+    return `breaking change is not marked in the header: the format "${config.format}" has no {breaking} token. Add {breaking} (e.g. "{type}({scope}){breaking}: {message}") to get "!".`;
+  }
+  return null;
+}
+
+/**
  * Builds a header from parts and validates it. Used by flags mode and the AI flow.
  * @param {{type?: string, scope?: string, ticket?: string, message?: string, breaking?: boolean}} input
  * @param {object} config
@@ -206,6 +220,11 @@ export function buildAndValidate(input, config) {
   const lengthWarning = headerLengthWarning(header, config);
   if (lengthWarning) {
     warnings.push(lengthWarning);
+  }
+
+  const breakingWarning = breakingMarkerWarning(parts.breaking, config);
+  if (breakingWarning) {
+    warnings.push(breakingWarning);
   }
 
   return { ok: errors.length === 0, header, parts, errors, warnings };
